@@ -25,8 +25,27 @@ module.exports = function (grunt) {
       dist: 'dist'
     },
 
+    jade: {
+      dist: {
+        options: {
+          pretty: true
+        },
+        files: [{
+          expand: true,
+          cwd: '<%= yeoman.app %>',
+          dest: '.tmp',
+          src: '{,*/}*.jade',
+          ext: '.html'
+        }]
+      }
+    },
+
     // Watches files for changes and runs tasks based on the changed files
     watch: {
+      jade: {
+        files: ['<%= yeoman.app %>/{,*/}*.jade'],
+        tasks: ['jade']
+      },
       js: {
         files: ['<%= yeoman.app %>/scripts/{,*/}*.js'],
         tasks: ['newer:jshint:all'],
@@ -50,7 +69,7 @@ module.exports = function (grunt) {
           livereload: '<%= connect.options.livereload %>'
         },
         files: [
-          '<%= yeoman.app %>/{,*/}*.html',
+          '.tmp/{,*/}*.html',
           '.tmp/styles/{,*/}*.css',
           '<%= yeoman.app %>/images/{,*/}*.{png,jpg,jpeg,gif,webp,svg}'
         ]
@@ -142,7 +161,7 @@ module.exports = function (grunt) {
     // Automatically inject Bower components into the app
     'bower-install': {
       app: {
-        html: '<%= yeoman.app %>/index.html',
+        html: '.tmp/index.html',
         ignorePath: '<%= yeoman.app %>/'
       }
     },
@@ -197,7 +216,7 @@ module.exports = function (grunt) {
     // concat, minify and revision files. Creates configurations in memory so
     // additional tasks can operate on them
     useminPrepare: {
-      html: '<%= yeoman.app %>/index.html',
+      html: '.tmp/index.html',
       options: {
         dest: '<%= yeoman.dist %>'
       }
@@ -205,7 +224,7 @@ module.exports = function (grunt) {
 
     // Performs rewrites based on rev and the useminPrepare configuration
     usemin: {
-      html: ['<%= yeoman.dist %>/{,*/}*.html'],
+      html: ['.tmp/{,*/}*.html'],
       css: ['<%= yeoman.dist %>/styles/{,*/}*.css'],
       options: {
         assetsDirs: ['<%= yeoman.dist %>']
@@ -243,7 +262,7 @@ module.exports = function (grunt) {
         },
         files: [{
           expand: true,
-          cwd: '<%= yeoman.dist %>',
+          cwd: '.tmp',
           src: ['*.html', 'views/{,*/}*.html'],
           dest: '<%= yeoman.dist %>'
         }]
@@ -360,6 +379,7 @@ module.exports = function (grunt) {
 
     grunt.task.run([
       'clean:server',
+      'jade',
       'bower-install',
       'concurrent:server',
       'autoprefixer',
@@ -383,6 +403,7 @@ module.exports = function (grunt) {
 
   grunt.registerTask('build', [
     'clean:dist',
+    'jade',
     'bower-install',
     'useminPrepare',
     'concurrent:dist',
