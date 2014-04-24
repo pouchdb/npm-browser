@@ -1,6 +1,6 @@
 'use strict';
 
-angular.module('yeomanAngularJadeSeedApp')
+angular.module('browserNpmApp')
   .controller('MainCtrl', function ($scope) {
     $scope.awesomeThings = [
       'HTML5 Boilerplate',

@@ -1,6 +1,6 @@
 'use strict';
 
-angular.module('yeomanAngularJadeSeedApp', [
+angular.module('browserNpmApp', [
   'ngCookies',
   'ngResource',
   'ngSanitize',
