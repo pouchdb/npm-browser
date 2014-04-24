@@ -1,30 +1,22 @@
 html
   body
     .header
-      ul.nav.nav-pills.pull-right
-        li.active
-          a(ng-href='#') Home
-        li
-          a(ng-href='#') About
-        li
-          a(ng-href='#') Contact
-      h3.text-muted yeoman angular jade seed
+      h3.text-muted NPM Browser
     .jumbotron
-      h1 &apos;Allo&comma; &apos;Allo&excl;
+      h1 You now have NPM in your browser
       p.lead
-        img(src='images/yeoman.png', alt='I"m Yeoman')
         br
-        | Always a pleasure scaffolding your apps&period;
+        | Don't believe me?  Turn off your Internet connection.
       p
-        a.btn.btn-lg.btn-success(ng-href='#') Splendid&excl;
-    .row.marketing
-      h4 HTML5 Boilerplate
-      p
-        | HTML5 Boilerplate is a professional front-end template for building fast&comma; robust&comma; and adaptable web apps or sites&period;
-      h4 Angular
-      p
-        | AngularJS is a toolset for building the framework most suited to your application development&period;
-      h4 Karma
-      p Spectacular Test Runner for JavaScript&period;
+        | {{docCount}}/{{remoteDocCount}} packages synced from &#20;
+        a(ng-href='{{couchdbUrl}}') {{couchdbUrl}} &#20;
+        span(ng-hide="syncComplete")
+          | so far&hellip;
+        span(ng-show="syncComplete")
+          | .  Done!
+
     .footer
-      p &heartsuit; from the Yeoman team
+      p
+        | Brought to you by &#20;
+        a(href='http://pouchdb.com') PouchDB
+        | .

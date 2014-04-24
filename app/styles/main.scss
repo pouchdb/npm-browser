@@ -67,25 +67,42 @@ body {
     margin-top: 28px;
 }
 
+@mixin bigscreen {
+  /* Remove the padding we set earlier */
+  .header,
+  .marketing,
+  .footer {
+    padding-left: 0;
+    padding-right: 0;
+  }
+  /* Space out the masthead */
+  .header {
+    margin-bottom: 30px;
+  }
+  /* Remove the bottom border on the jumbotron for visual effect */
+  .jumbotron {
+    border-bottom: 0;
+  }
+}
+
+.jumbotron h1 {
+  font-size: 48px;
+}
+
 /* Responsive: Portrait tablets and up */
-@media screen and (min-width: 768px) {
-    .container {
+@media screen and (min-width: 768px) and (max-width: 999px) {
+  @include bigscreen();
+
+  .container {
         max-width: 730px;
     }
+}
 
-    /* Remove the padding we set earlier */
-    .header,
-    .marketing,
-    .footer {
-        padding-left: 0;
-        padding-right: 0;
-    }
-    /* Space out the masthead */
-    .header {
-        margin-bottom: 30px;
-    }
-    /* Remove the bottom border on the jumbotron for visual effect */
-    .jumbotron {
-        border-bottom: 0;
-    }
+// bigger
+@media screen and (min-width: 1000px) {
+  @include bigscreen();
+
+  .container {
+    max-width: 960px;
+  }
 }
