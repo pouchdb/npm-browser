@@ -64,12 +64,12 @@ angular.module('browserNpmApp')
       });
     }
 
-    pouch.replicate.from(remotePouch, {
-      onChange: updatePage,
-      complete: function () {
+    pouch.replicate.from(remotePouch)
+      .on('change', updatePage)
+      .on('complete', function () {
         $scope.syncComplete = true;
       }
-    });
+    );
     fetchRemoteDocCount();
     updatePage();
 
