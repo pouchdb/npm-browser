@@ -64,13 +64,8 @@ angular.module('browserNpmApp')
       });
     }
 
-    var counter = 0;
     pouch.replicate.from(remotePouch, {
-      onChange: function() {
-        if (++counter % 10 === 0) {
-          updatePage();
-        }
-      },
+      onChange: updatePage,
       complete: function () {
         $scope.syncComplete = true;
       }
