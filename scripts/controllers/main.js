@@ -5,7 +5,8 @@ angular.module('browserNpmApp')
 
     var PAGE_SIZE = 10;
 
-    $scope.couchdbUrl = 'http://nolan.iriscouch.com/skimdb/';
+    $scope.couchdbUrl = 'https://skimdb.npmjs.com/registry';
+    //$scope.couchdbUrl = 'http://nolan.iriscouch.com/skimdb';
     $scope.docCount = 0;
     $scope.remoteDocCount = 0;
     $scope.page = [];
