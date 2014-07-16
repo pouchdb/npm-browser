@@ -1,4 +1,4 @@
-// contains PRs 2474, 2472, 2476
+// taken from nolan-2466 branch
 !function(e){if("object"==typeof exports)module.exports=e();else if("function"==typeof define&&define.amd)define(e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.PouchDB=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 "use strict";
 
@@ -743,8 +743,6 @@ AbstractPouchDB.prototype.registerDependentDatabase =
 },{"./changes":6,"./deps/errors":10,"./deps/upsert":11,"./merge":16,"./utils":21,"events":25}],2:[function(_dereq_,module,exports){
 "use strict";
 
-var CHANGES_BATCH_SIZE = 25;
-
 var utils = _dereq_('../utils');
 var errors = _dereq_('../deps/errors');
 // parseUri 1.2.2
@@ -1424,7 +1422,7 @@ function HttpPouch(opts, callback) {
     // if there is a large set of changes to be returned we can start
     // processing them quicker instead of waiting on the entire
     // set of changes to return and attempting to process them at once
-    var batchSize = 'batch_size' in opts ? opts.batch_size : CHANGES_BATCH_SIZE;
+    var CHANGES_LIMIT = 25;
 
     opts = utils.clone(opts);
     opts.timeout = opts.timeout || 30 * 1000;
@@ -1499,8 +1497,8 @@ function HttpPouch(opts, callback) {
           params.limit = leftToFetch;
         }
       } else {
-        params.limit = (!limit || leftToFetch > batchSize) ?
-          batchSize : leftToFetch;
+        params.limit = (!limit || leftToFetch > CHANGES_LIMIT) ?
+          CHANGES_LIMIT : leftToFetch;
       }
 
       var paramStr = '?' + Object.keys(params).map(function (k) {
@@ -1571,7 +1569,7 @@ function HttpPouch(opts, callback) {
       }
 
       var finished = (limit && leftToFetch <= 0) ||
-        (res && raw_results_length < batchSize) ||
+        (res && raw_results_length < CHANGES_LIMIT) ||
         (opts.descending);
 
       if ((opts.continuous && !(limit && leftToFetch <= 0)) || !finished) {
@@ -5552,32 +5550,34 @@ function replicate(repId, src, target, opts, returnValue) {
   }
 
   function getDocs() {
-    var keys = Object.keys(currentBatch.diffs);
-    if (!keys.length) {
+    var docIds = Object.keys(currentBatch.diffs);
+    if (!docIds.length) {
       return utils.Promise.resolve();
     }
-    return src.allDocs({keys: keys, include_docs: true}).then(function (res) {
-      return utils.Promise.all(keys.map(function (key, i) {
-        return mapAllDocsToOpenRevs(key, res.rows[i]);
-      }));
-    }).then(function (docLists) {
+    var idsToDocs = {};
+    currentBatch.changes.forEach(function (change) {
+      idsToDocs[change.id] = change.doc;
+    });
+    return utils.Promise.all(docIds.map(function (docId) {
+      return mapToDocWithOpenRevs(docId, idsToDocs[docId]);
+    })).then(function (docLists) {
       docLists.forEach(function (docs) {
         docs.forEach(processSourceDoc);
       });
     });
   }
 
-  function mapAllDocsToOpenRevs(key, row) {
+  function mapToDocWithOpenRevs(docId, doc) {
     // as an optimization, we optimistically try to fetch all the open
-    // revs using just allDocs if that's not possible, we do separate
-    // simultaneous GETs for the open_revs
-    var diffs = currentBatch.diffs;
-    var missing = diffs[key].missing;
-    if (row.value.deleted) {
-      return [{ok: {_id: key, _rev: row.value.rev, _deleted: true}}];
+    // revs using just the docs returned from changes()
+    // if that's not possible, we do separate GETs for the open_revs
+    if (doc._deleted) {
+      return [{ok: doc}];
     }
-    var needAttachments = row.doc._attachments;
-    var needOtherRevs = missing.length > 1 || missing[0] !== row.value.rev;
+    var diffs = currentBatch.diffs;
+    var missing = diffs[docId].missing;
+    var needAttachments = doc._attachments;
+    var needOtherRevs = missing.length > 1 || missing[0] !== doc._rev;
     if (needAttachments || needOtherRevs) {
       // fetch individually (slower)
       // also, url might be too long, so have to break it up
@@ -5587,7 +5587,7 @@ function replicate(repId, src, target, opts, returnValue) {
         subArrays.push(missing.slice(i, end));
       }
       return utils.Promise.all(subArrays.map(function (missing) {
-        return src.get(key, {
+        return src.get(docId, {
           revs: true,
           open_revs: missing,
           attachments: true
@@ -5598,7 +5598,7 @@ function replicate(repId, src, target, opts, returnValue) {
         }, []);
       });
     }
-    return [{ok: row.doc}];
+    return [{ok: doc}];
   }
 
   function processSourceDoc(doc) {
@@ -5819,10 +5819,10 @@ function replicate(repId, src, target, opts, returnValue) {
       changesOpts = {
         since: last_seq,
         limit: batch_size,
-        batch_size: batch_size,
         style: 'all_docs',
         doc_ids: doc_ids,
-        returnDocs: false
+        returnDocs: false,
+        include_docs: true
       };
       if (opts.filter) {
         changesOpts.filter = opts.filter;
