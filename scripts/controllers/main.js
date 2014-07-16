@@ -1,11 +1,19 @@
 'use strict';
 
+function capitalize(str) {
+  if (str.length < 2) {
+    return str.toUpperCase();
+  }
+  return str.charAt(0).toUpperCase() + str.substring(1).toLowerCase();
+}
+
 angular.module('browserNpmApp')
   .controller('MainCtrl', function ($scope) {
 
     var PAGE_SIZE = 10;
 
     $scope.couchdbUrl = 'https://skimdb.iriscouch.com/registry';
+    //$scope.couchdbUrl = 'http://localhost:5984/skimdb';
     $scope.docCount = 0;
     $scope.remoteDocCount = 0;
     $scope.page = [];
@@ -13,7 +21,11 @@ angular.module('browserNpmApp')
 
     var dirty = false;
     var startkey;
-    var pouch = new PouchDB('npm');
+
+    var pouch = new PouchDB('npm', {adapter: 'websql', size: 3000});
+    if (!pouch.adapter) {
+      pouch = new PouchDB('npm');
+    }
     var remotePouch = new PouchDB($scope.couchdbUrl);
 
     function fetchDocCount() {
@@ -26,11 +38,33 @@ angular.module('browserNpmApp')
     function fetchRemoteDocCount() {
       remotePouch.info().then(function (res) {
         $scope.remoteDocCount = res.doc_count;
+        localStorage['last_known'] = res.doc_count;
+        $scope.$apply();
+      }, function (err) {
+        console.log(err);
+        // just use the last known
+        $scope.remoteDocCount = localStorage['last_known'] || 0;
         $scope.$apply();
       });
     }
 
+    var timeout;
+    var first = false;
     function updatePage() {
+      // use a timeout so it doesn't happen multiple times at once
+      if (first) {
+        first = false;
+        updatePageAfterTimeout();
+        return;
+      } else if (typeof timeout !== 'undefined') {
+        clearTimeout(timeout);
+      }
+      timeout = setTimeout(function () {
+        updatePageAfterTimeout();
+      }, 50);
+    }
+
+    function updatePageAfterTimeout() {
       fetchDocCount();
 
       if ($scope.loading) {
@@ -39,6 +73,39 @@ angular.module('browserNpmApp')
       }
 
       $scope.loading = true;
+
+      function done() {
+
+        $scope.loading = false;
+        if (dirty) {
+          dirty = false;
+          updatePage();
+        }
+        $scope.$apply();
+      }
+
+      getDocs().then(function (res) {
+        $scope.page = res.rows.map(function (row) {
+          return row.doc;
+        });
+        done();
+      }, function (err) {
+        console.log(err);
+        done();
+      });
+    }
+
+    function getDocs() {
+
+      var inQuery = $scope.query && $scope.query.length >= 2;
+      if (inQuery) {
+        return getDocsViaQuery();
+      } else {
+        return getDocsNormally();
+      }
+    }
+
+    function getDocsNormally() {
       var opts = {
         limit: PAGE_SIZE,
         include_docs: true
@@ -48,23 +115,70 @@ angular.module('browserNpmApp')
         opts.skip = 1;
       }
 
-      pouch.allDocs(opts).then(function (res) {
-        $scope.page = res.rows.map(function (row) {
-          row.doc.maintainersString = (row.doc.maintainers || []).map(function (person) {
-            return person.name
-          }).join(', ');
-          return row.doc;
+      return pouch.allDocs(opts);
+    }
+
+    function getDocsViaQuery() {
+
+      var queryStart = startkey || $scope.query;
+      var queryEnd = $scope.query;
+
+      // packages don't have any particular case, so fudge it
+      var lc = [queryStart.toLowerCase(), queryEnd.toLowerCase()];
+      var uc = [queryStart.toUpperCase(), queryEnd.toUpperCase()];
+      var cap = [capitalize(queryStart), capitalize(queryEnd)];
+
+      // search locally and remote since we might not be synced at 100% yet
+      var queryPermutations = [ lc, uc, cap ];
+
+      return PouchDB.utils.Promise.all([pouch, remotePouch].map(function (pouch) {
+        return PouchDB.utils.Promise.all(queryPermutations.map(function (query) {
+          var opts = {
+            startkey: query[0],
+            endkey: query[1] + '\uffff',
+            limit: PAGE_SIZE,
+            include_docs: true
+          };
+
+          return pouch.allDocs(opts).then(null, function (err) {
+            console.log(err);
+            return {rows: []}; // works offline
+          });
+        }));
+      })).then(function (resultLists) {
+        var map = {};
+        // combine results
+        resultLists.forEach(function (resultList) {
+          resultList.forEach(function (res) {
+            res.rows.forEach(function (row) {
+              if (row.doc.time && row.doc.time.unpublished) {
+                return;
+              } else if (row.id === startkey) { // paging, so remove
+                return;
+              }
+              map[row.id] = row;
+            });
+          });
         });
-        $scope.loading = false;
-        if (dirty) {
-          dirty = false;
-          updatePage();
+        var keys = Object.keys(map);
+
+        keys.sort(function (a, b) {
+          // case insensitive sort
+          a = a.toLowerCase();
+          b = b.toLowerCase();
+          return a < b ? -1 : a > b ? 1 : 0;
+        });
+        var rows = keys.map(function (key) {
+          return map[key];
+        });
+        if (rows.length > PAGE_SIZE) {
+          rows = rows.slice(0, PAGE_SIZE);
         }
-        $scope.$apply();
+        return {rows: rows};
       });
     }
 
-    pouch.replicate.from(remotePouch)
+    pouch.replicate.from(remotePouch, {batch_size: 500})
       .on('change', updatePage)
       .on('complete', function () {
         $scope.syncComplete = true;
@@ -84,6 +198,12 @@ angular.module('browserNpmApp')
 
     $scope.previousPage = function() {
       startkey = $scope.pageStack.pop();
+      updatePage();
+    }
+
+    $scope.performSearch = function() {
+      startkey = null; // reset
+      $scope.pageStack = [];
       updatePage();
     }
   });

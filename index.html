@@ -17,15 +17,9 @@
     <title>NPM Browser</title>
     <meta name="description" content="">
     <meta name="viewport" content="width=device-width">
-    <!-- Place favicon.ico and apple-touch-icon.png in the root directory-->
-    <!-- build:css(app) styles/vendor.css-->
-    <!-- bower:css-->
     <link rel="stylesheet" href="styles/bootstrap.css">
-    <!-- endbower-->
-    <!-- endbuild-->
-    <!-- build:css({.tmp,app}) styles/main.css-->
     <link rel="stylesheet" href="styles/main.css">
-    <!-- endbuild-->
+    <link rel="stylesheet" href="styles/app.css">
   </head>
   <body ng-app="browserNpmApp">
     <!--[if lt IE 7]>
@@ -46,8 +40,6 @@
     <script src="bower_components/es5-shim/es5-shim.js"></script>
     <script src="bower_components/json3/lib/json3.min.js"></script>
     <![endif]-->
-    <!-- build:js(app) scripts/vendor.js-->
-    <!-- bower:js-->
     <script src="scripts/jquery.js"></script>
     <script src="scripts/angular.js"></script>
     <script src="scripts/bootstrap.js"></script>
@@ -55,12 +47,8 @@
     <script src="scripts/angular-cookies.js"></script>
     <script src="scripts/angular-sanitize.js"></script>
     <script src="scripts/angular-route.js"></script>
-    <!-- endbower-->
-    <!-- endbuild-->
-    <!-- build:js({.tmp,app}) scripts/scripts.js-->
     <script src="scripts/pouchdb.js"></script>
     <script src="scripts/app.js"></script>
     <script src="scripts/controllers/main.js"></script>
-    <!-- endbuild-->
   </body>
 </html>
