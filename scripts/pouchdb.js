@@ -1,3 +1,4 @@
+// commit e4928dd6f2dba7071be438cf2636e1cf71168335
 !function(e){if("object"==typeof exports)module.exports=e();else if("function"==typeof define&&define.amd)define(e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof self&&(f=self),f.PouchDB=e()}}(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);throw new Error("Cannot find module '"+o+"'")}var f=n[o]={exports:{}};t[o][0].call(f.exports,function(e){var n=t[o][1][e];return s(n?n:e)},f,f.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(_dereq_,module,exports){
 "use strict";
 
@@ -5349,6 +5350,8 @@ module.exports = PouchMerge;
 },{"pouchdb-extend":46}],17:[function(_dereq_,module,exports){
 'use strict';
 
+var MAX_OPEN_REVS = 50;
+
 var utils = _dereq_('./utils');
 var Pouch = _dereq_('./index');
 var EE = _dereq_('events').EventEmitter;
@@ -5546,74 +5549,66 @@ function replicate(repId, src, target, opts, returnValue) {
     });
   }
 
-
-  function getNextDoc() {
-    var diffs = currentBatch.diffs;
-    var id = Object.keys(diffs)[0];
-    var revs = diffs[id].missing;
-    return src.get(id, {revs: true, open_revs: revs, attachments: true})
-    .then(function (docs) {
-      docs.forEach(function (doc) {
-        if (returnValue.cancelled) {
-          return completeReplication();
-        }
-        if (doc.ok) {
-          result.docs_read++;
-          currentBatch.pendingRevs++;
-          currentBatch.docs.push(doc.ok);
-          delete diffs[doc.ok._id];
-        }
-      });
-    });
-  }
-
-
-  function getAllDocs() {
-    if (Object.keys(currentBatch.diffs).length > 0) {
-      return getNextDoc().then(getAllDocs);
-    } else {
+  function getDocs() {
+    var keys = Object.keys(currentBatch.diffs);
+    if (!keys.length) {
       return utils.Promise.resolve();
     }
-  }
-
-
-  function getRevisionOneDocs() {
-    // filter out the generation 1 docs and get them
-    // leaving the non-generation one docs to be got otherwise
-    var ids = Object.keys(currentBatch.diffs).filter(function (id) {
-      var missing = currentBatch.diffs[id].missing;
-      return missing.length === 1 && missing[0].slice(0, 2) === '1-';
-    });
-    return src.allDocs({
-      keys: ids,
-      include_docs: true
-    }).then(function (res) {
-      if (returnValue.cancelled) {
-        completeReplication();
-        throw (new Error('cancelled'));
-      }
-      res.rows.forEach(function (row, i) {
-        if (row.doc && !row.deleted &&
-          row.value.rev.slice(0, 2) === '1-' && (
-            !row.doc._attachments ||
-            Object.keys(row.doc._attachments).length === 0
-          )
-        ) {
-          result.docs_read++;
-          currentBatch.pendingRevs++;
-          currentBatch.docs.push(row.doc);
-          delete currentBatch.diffs[row.id];
-        }
+    return src.allDocs({keys: keys, include_docs: true}).then(function (res) {
+      return utils.Promise.all(keys.map(function (key, i) {
+        return mapAllDocsToOpenRevs(key, res.rows[i]);
+      }));
+    }).then(function (docLists) {
+      docLists.forEach(function (docs) {
+        docs.forEach(processSourceDoc);
       });
     });
   }
 
+  function mapAllDocsToOpenRevs(key, row) {
+    // as an optimization, we optimistically try to fetch all the open
+    // revs using just allDocs if that's not possible, we do separate
+    // simultaneous GETs for the open_revs
+    var diffs = currentBatch.diffs;
+    var missing = diffs[key].missing;
+    if (row.value.deleted) {
+      return [{ok: {_id: key, _rev: row.value.rev, _deleted: true}}];
+    }
+    var needAttachments = row.doc._attachments;
+    var needOtherRevs = missing.length > 1 || missing[0] !== row.value.rev;
+    if (needAttachments || needOtherRevs) {
+      // fetch individually (slower)
+      // also, url might be too long, so have to break it up
+      var subArrays = [];
+      for (var i = 0; i < missing.length; i +=  MAX_OPEN_REVS) {
+        var end = Math.min(missing.length, i + MAX_OPEN_REVS);
+        subArrays.push(missing.slice(i, end));
+      }
+      return utils.Promise.all(subArrays.map(function (missing) {
+        return src.get(key, {
+          revs: true,
+          open_revs: missing,
+          attachments: true
+        });
+      })).then(function (results) {
+        return results.reduce(function (left, right) {
+          return left.concat(right);
+        }, []);
+      });
+    }
+    return [{ok: row.doc}];
+  }
 
-  function getDocs() {
-    if (src.type() === 'http') {
-      return getRevisionOneDocs().then(getAllDocs);
-    } else {
-      return getAllDocs();
+  function processSourceDoc(doc) {
+    var diffs = currentBatch.diffs;
+    if (returnValue.cancelled) {
+      return completeReplication();
+    }
+    if (doc.ok) {
+      result.docs_read++;
+      currentBatch.pendingRevs++;
+      currentBatch.docs.push(doc.ok);
+      delete diffs[doc.ok._id];
     }
   }
 
