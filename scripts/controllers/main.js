@@ -22,14 +22,11 @@ angular.module('browserNpmApp')
     var dirty = false;
     var startkey;
 
-    var pouch = new PouchDB('npm', {adapter: 'websql', size: 3000});
-    if (!pouch.adapter) {
-      pouch = new PouchDB('npm');
-    }
+    var localPouch = new PouchDB('npm', {size: 3000});
     var remotePouch = new PouchDB($scope.couchdbUrl);
 
     function fetchDocCount() {
-      pouch.info().then(function (res) {
+      localPouch.info().then(function (res) {
         $scope.docCount = res.doc_count;
         $scope.$apply();
       });
@@ -38,12 +35,12 @@ angular.module('browserNpmApp')
     function fetchRemoteDocCount() {
       remotePouch.info().then(function (res) {
         $scope.remoteDocCount = res.doc_count;
-        localStorage['last_known'] = res.doc_count;
+        localStorage['remote_size'] = res.doc_count;
         $scope.$apply();
       }, function (err) {
         console.log(err);
         // just use the last known
-        $scope.remoteDocCount = localStorage['last_known'] || 0;
+        $scope.remoteDocCount = localStorage['remote_size'] || 0;
         $scope.$apply();
       });
     }
@@ -115,7 +112,7 @@ angular.module('browserNpmApp')
         opts.skip = 1;
       }
 
-      return pouch.allDocs(opts);
+      return localPouch.allDocs(opts);
     }
 
     function getDocsViaQuery() {
@@ -131,7 +128,11 @@ angular.module('browserNpmApp')
       // search locally and remote since we might not be synced at 100% yet
       var queryPermutations = [ lc, uc, cap ];
 
-      return PouchDB.utils.Promise.all([pouch, remotePouch].map(function (pouch) {
+
+      // if we're done syncing, then we can safely just use local search for speed
+      var pouches = $scope.syncComplete ? [localPouch] : [localPouch, remotePouch];
+
+      return PouchDB.utils.Promise.all(pouches.map(function (pouch) {
         return PouchDB.utils.Promise.all(queryPermutations.map(function (query) {
           var opts = {
             startkey: query[0],
@@ -178,7 +179,7 @@ angular.module('browserNpmApp')
       });
     }
 
-    pouch.replicate.from(remotePouch, {batch_size: 500})
+    localPouch.replicate.from(remotePouch, {batch_size: 500})
       .on('change', updatePage)
       .on('complete', function () {
         $scope.syncComplete = true;
