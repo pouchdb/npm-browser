@@ -1,3 +1,16 @@
 .input-group {
     max-width: 200px;
+    min-width: 150px;
+}
+
+@media (max-width: 767px) {
+    .jumbotron h1 {
+        font-size: 24px;
+    }
+    .jumbotron p {
+        font-size: 18px;
+    }
+    .jumbotron {
+        padding: 8px 18px;
+    }
 }
