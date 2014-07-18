@@ -3,7 +3,15 @@
   <body>
     <div class="jumbotron">
       <h1>You now have NPM in your browser.</h1>
-      <p class="lead"><br/>Don't believe me?  Turn off your Internet connection.<small><br/>{{docCount}}/{{remoteDocCount}} packages synced from &#20;<a ng-href="{{couchdbUrl}}">{{couchdbUrl}} &#20;</a><span ng-hide="syncComplete">so far&hellip;</span><span ng-show="syncComplete">.  Done!</span></small></p>
+      <p class="lead"><br/>
+        Don't believe me?  Turn off your Internet connection.
+        <small><br/>
+          {{docCount}}/{{remoteDocCount}} packages synced from
+          <a ng-href="{{pouchService.couchdbUrl}}">{{pouchService.couchdbUrl}}</a>
+          <span ng-hide="pouchService.syncComplete">so far&hellip;</span>
+          <span ng-show="pouchService.syncComplete">.  Done!</span>
+        </small>
+      </p>
     </div>
     <table class="table table-striped">
       <thead>
