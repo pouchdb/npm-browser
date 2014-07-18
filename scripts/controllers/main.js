@@ -179,7 +179,7 @@ angular.module('browserNpmApp')
       });
     }
 
-    localPouch.replicate.from(remotePouch, {batch_size: 500})
+    localPouch.replicate.from(remotePouch)
       .on('change', updatePage)
       .on('complete', function () {
         $scope.syncComplete = true;
