@@ -1,6 +1,6 @@
 .input-group {
     max-width: 200px;
-    min-width: 150px;
+    min-width: 125px;
 }
 
 @media (max-width: 767px) {
@@ -13,4 +13,15 @@
     .jumbotron {
         padding: 8px 18px;
     }
+    td {
+      /* else columns are too wide */
+      word-break: break-word;
+    }
+    .btn {
+      font-size: 12px;
+    }
+}
+
+td.fixed-width {
+  width: 150px;
 }
