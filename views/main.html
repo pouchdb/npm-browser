@@ -46,7 +46,7 @@
       <tbody>
         <tr ng-repeat="doc in pageService.page">
           <td class="fixed-width">
-            <a ng-href="/#/{{doc._id}}" href="#">{{doc.name}}</a>
+            <a ng-href="#/{{doc._id}}" href="#">{{doc.name}}</a>
           </td>
           <td>{{doc.description || '(None)'}}</td>
           <td class="fixed-width" ng-switch="doc.maintainers.length">
