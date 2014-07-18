@@ -20,6 +20,12 @@
     .btn {
       font-size: 12px;
     }
+    td,th { 
+      font-size: 12px;
+    }
+    input.form-control { 
+      font-size: 12px;
+    }
 }
 
 td.fixed-width {
