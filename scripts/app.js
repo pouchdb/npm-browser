@@ -12,6 +12,10 @@ angular.module('browserNpmApp', [
         templateUrl: 'views/main.html',
         controller: 'MainCtrl'
       })
+      .when('/:moduleId', {
+        templateUrl: 'views/detail.html',
+        controller: 'DetailCtrl'
+      })
       .otherwise({
         redirectTo: '/'
       });

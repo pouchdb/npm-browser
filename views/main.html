@@ -42,7 +42,7 @@
       <tbody>
         <tr ng-repeat="doc in page">
           <td class="fixed-width">
-            <a ng-href="https://www.npmjs.org/package/{{doc.name}}" href="#" target="_blank">{{doc.name}}</a>
+            <a ng-href="/#/{{doc._id}}" href="#">{{doc.name}}</a>
           </td>
           <td>{{doc.description || '(None)'}}</td>
           <td class="fixed-width" ng-switch="doc.maintainers.length">

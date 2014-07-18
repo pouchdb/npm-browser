@@ -13,10 +13,6 @@
     .jumbotron {
         padding: 8px 18px;
     }
-    td {
-      /* else columns are too wide */
-      word-break: break-word;
-    }
     .btn {
       font-size: 12px;
     }
@@ -30,4 +26,25 @@
 
 td.fixed-width {
   width: 150px;
+}
+
+img.gravatar {
+    width: 32px;
+    height: 32px;
+}
+
+.details-body {
+    margin: 0 100px 0 50px;
+}
+.jumbotron.details-jumbotron {
+    padding: 20px 50px;
+}
+
+.detail-container {
+    margin-right:auto;
+    margin-left:100px;
+}
+
+.maintainer {
+    margin-top: 2px;
 }

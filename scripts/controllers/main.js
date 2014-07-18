@@ -16,6 +16,8 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
   var dirty = false;
   var startkey;
 
+  pouchService.onChange(updatePage);
+
   function fetchDocCount() {
     localPouch.info().then(function (res) {
       $scope.docCount = res.doc_count;
