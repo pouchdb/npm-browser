@@ -10,9 +10,7 @@ function PouchService () {
   self.remotePouch = new PouchDB(COUCHDB_URL);
   self.couchdbUrl = COUCHDB_URL;
 
-  self.localPouch.replicate.from(self.remotePouch, {
-    batch_size: 500
-  })
+  self.localPouch.replicate.from(self.remotePouch)
     .on('change', function () {
       if (self.onChangeListener) {
         self.onChangeListener();
