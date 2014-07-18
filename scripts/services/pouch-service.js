@@ -1,7 +1,7 @@
 'use strict';
 
-//var COUCH_URL = 'https://skimdb.iriscouch.com/registry';
-var COUCHDB_URL = 'http://localhost:5984/skimdb';
+var COUCHDB_URL = 'https://skimdb.iriscouch.com/registry';
+//var COUCHDB_URL = 'http://localhost:5984/skimdb';
 
 function PouchService () {
   var self = this;
@@ -10,7 +10,9 @@ function PouchService () {
   self.remotePouch = new PouchDB(COUCHDB_URL);
   self.couchdbUrl = COUCHDB_URL;
 
-  self.localPouch.replicate.from(self.remotePouch)
+  self.localPouch.replicate.from(self.remotePouch, {
+    batch_size: 500
+  })
     .on('change', function () {
       if (self.onChangeListener) {
         self.onChangeListener();

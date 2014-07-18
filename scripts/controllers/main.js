@@ -1,20 +1,18 @@
 'use strict';
 
-angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchService, utils) {
+angular.module('browserNpmApp').controller('MainCtrl',
+    function ($scope, pouchService, pageService, utils) {
 
   var PAGE_SIZE = 10;
   var Promise = PouchDB.utils.Promise;
 
   $scope.docCount = 0;
   $scope.remoteDocCount = 0;
-  $scope.page = [];
-  $scope.pageStack = [];
   $scope.pouchService = pouchService;
+  $scope.pageService = pageService;
 
   var localPouch = pouchService.localPouch;
   var remotePouch = pouchService.remotePouch;
-  var dirty = false;
-  var startkey;
 
   pouchService.onChange(updatePage);
 
@@ -57,25 +55,25 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
   function updatePageAfterTimeout() {
     fetchDocCount();
 
-    if ($scope.loading) {
-      dirty = true;
+    if (pageService.loading) {
+      pageService.dirty = true;
       return;
     }
 
-    $scope.loading = true;
+    pageService.loading = true;
 
     function done() {
 
-      $scope.loading = false;
-      if (dirty) {
-        dirty = false;
+      pageService.loading = false;
+      if (pageService.dirty) {
+        pageService.dirty = false;
         updatePage();
       }
       $scope.$apply();
     }
 
     getDocs().then(function (res) {
-      $scope.page = res.rows.map(function (row) {
+      pageService.page = res.rows.map(function (row) {
         return row.doc;
       });
       done();
@@ -87,7 +85,7 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
 
   function getDocs() {
 
-    var inQuery = $scope.query && $scope.query.length >= 2;
+    var inQuery = pageService.query && pageService.query.length >= 2;
     if (inQuery) {
       return getDocsViaQuery();
     } else {
@@ -100,8 +98,8 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
       limit: PAGE_SIZE,
       include_docs: true
     };
-    if (startkey) {
-      opts.startkey = startkey;
+    if (pageService.startkey) {
+      opts.startkey = pageService.startkey;
       opts.skip = 1;
     }
 
@@ -110,8 +108,8 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
 
   function getDocsViaQuery() {
 
-    var queryStart = startkey || $scope.query;
-    var queryEnd = $scope.query;
+    var queryStart = pageService.startkey || pageService.query;
+    var queryEnd = pageService.query;
 
     // packages don't have any particular case, so fudge it
     var lc = [queryStart.toLowerCase(), queryEnd.toLowerCase()];
@@ -145,7 +143,7 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
         resultList.forEach(function (res) {
           res.rows.forEach(function (row) {
             var invalidModule = row.doc.time && row.doc.time.unpublished;
-            var firstResult = row.id === startkey; // paging, so remove
+            var firstResult = row.id === pageService.startkey; // paging, so remove
             if (!invalidModule && !firstResult) {
               map[row.id] = row;
             }
@@ -169,22 +167,22 @@ angular.module('browserNpmApp').controller('MainCtrl', function ($scope, pouchSe
   updatePage();
 
   $scope.nextPage = function() {
-    var lastDoc = $scope.page[$scope.page.length - 1];
+    var lastDoc = pageService.page[pageService.page.length - 1];
     if (lastDoc) {
-      $scope.pageStack.push(startkey);
-      startkey = lastDoc._id;
+      pageService.pageStack.push(pageService.startkey);
+      pageService.startkey = lastDoc._id;
       updatePage();
     }
   }
 
   $scope.previousPage = function() {
-    startkey = $scope.pageStack.pop();
+    pageService.startkey = pageService.pageStack.pop();
     updatePage();
   }
 
   $scope.performSearch = function() {
-    startkey = null; // reset
-    $scope.pageStack = [];
+    pageService.startkey = null; // reset
+    pageService.pageStack = [];
     updatePage();
   }
 });
