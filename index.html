@@ -1,16 +1,5 @@
 <!DOCTYPE html>
-<!--[if lt IE 7]>
-<html class="no-js lt-ie9 lt-ie8 lt-ie7"> </html>
-<![endif]-->
-<!--[if IE 7]>
-<html class="no-js lt-ie9 lt-ie8"> </html>
-<![endif]-->
-<!--[if IE 8]>
-<html class="no-js lt-ie9"> </html>
-<![endif]-->
-<!-- [if gt IE 8] <!-->
-<html class="no-js">
-  <!-- <![endif]-->
+<html class="no-js" manifest="manifest.appcache">
   <head>
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -20,12 +9,9 @@
     <link rel="stylesheet" href="styles/bootstrap.css">
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/app.css">
+    <link rel="shortcut icon" href="favicon.ico" />
   </head>
   <body ng-app="browserNpmApp">
-    <!--[if lt IE 7]>
-    <p class="browsehappy">You are using an<strong>outdated</strong>browser&period; Please<a href="http://browsehappy.com/">upgrade your browser</a>to improve your experience&period;</p>
-    <![endif]-->
-    <!-- Add your site or application content here-->
     <div ng-view="" class="container"></div>
     <!-- Google Analytics: change UA-XXXXX-X to be your site's ID-->
     <script>
@@ -36,10 +22,6 @@
       ga('create', 'UA-XXXXX-X');
       ga('send', 'pageview');
     </script>
-    <!--[if lt IE 9]>
-    <script src="bower_components/es5-shim/es5-shim.js"></script>
-    <script src="bower_components/json3/lib/json3.min.js"></script>
-    <![endif]-->
     <script src="scripts/jquery.js"></script>
     <script src="scripts/angular.js"></script>
     <script src="scripts/bootstrap.js"></script>

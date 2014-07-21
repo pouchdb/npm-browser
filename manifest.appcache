@@ -1,0 +1,43 @@
+CACHE MANIFEST
+# v0
+CACHE:
+index.html
+favicon.ico
+
+# scripts
+scripts/angular-cookies.js
+scripts/angular-resource.js
+scripts/angular-route.js
+scripts/angular-sanitize.js
+scripts/angular.js
+scripts/app.js
+scripts/bootstrap.js
+scripts/jquery.js
+scripts/controllers/detail.js
+scripts/controllers/main.js
+scripts/deps/markdown.min.js
+scripts/deps/md5.min.js
+scripts/deps/moment.min.js
+scripts/deps/pouchdb.filter-pouch.js
+scripts/deps/pouchdb.js
+scripts/factories/utils.js
+scripts/services/page-service.js
+scripts/services/pouch-service.js
+
+# styles
+styles/app.css
+styles/bootstrap.css
+styles/main.css
+
+# views
+views/detail.html
+views/main.html
+
+# fonts
+fonts/glyphicons-halflings-regular.eot
+fonts/glyphicons-halflings-regular.svg
+fonts/glyphicons-halflings-regular.ttf
+fonts/glyphicons-halflings-regular.woff
+
+NETWORK:
+*
