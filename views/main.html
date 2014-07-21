@@ -6,8 +6,8 @@
       <p class="lead"><br/>
         Don't believe me?  Turn off your Internet connection.
         <small><br/>
-          {{docCount}}/{{remoteDocCount}} packages synced from
-          <a ng-href="{{pouchService.couchdbUrl}}">{{pouchService.couchdbUrl}}</a>
+          {{docCount}} packages ({{getPercentProgress()}}%) synced from
+          <a ng-href="{{pouchService.couchdbUrl}}">{{pouchService.getShortCouchUrl()}}</a>
           <span ng-hide="pouchService.syncComplete">so far&hellip;</span>
           <span ng-show="pouchService.syncComplete">.  Done!</span>
         </small>

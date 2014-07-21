@@ -294,21 +294,32 @@ AbstractPouchDB.prototype.removeAttachment =
 });
 
 AbstractPouchDB.prototype.remove =
-  utils.adapterFun('remove', function (doc, opts, callback) {
-  if (typeof opts === 'function') {
-    callback = opts;
-    opts = {};
-  } else if (typeof opts === 'string') {
+  utils.adapterFun('remove', function (docOrId, optsOrRev, opts, callback) {
+  var doc;
+  if (typeof optsOrRev === 'string') {
+    // id, rev, opts, callback style
     doc = {
-      _id: doc,
-      _rev: opts
+      _id: docOrId,
+      _rev: optsOrRev
     };
-  } else if (opts === undefined) {
-    opts = {};
+    if (typeof opts === 'function') {
+      callback = opts;
+      opts = {};
+    }
+  } else {
+    // doc, opts, callback style
+    doc = docOrId;
+    if (typeof optsOrRev === 'function') {
+      callback = optsOrRev;
+      opts = {};
+    } else {
+      callback = opts;
+      opts = optsOrRev;
+    }
   }
-  opts = utils.clone(opts);
+  opts = utils.clone(opts || {});
   opts.was_delete = true;
-  var newDoc = {_id: doc._id, _rev: doc._rev};
+  var newDoc = {_id: doc._id, _rev: (doc._rev || opts.rev)};
   newDoc._deleted = true;
   if (utils.isLocalId(newDoc._id) && typeof this._removeLocal === 'function') {
     return this._removeLocal(doc, callback);
@@ -324,14 +335,19 @@ AbstractPouchDB.prototype.revsDiff =
   }
   opts = utils.clone(opts);
   var ids = Object.keys(req);
+
+  if (!ids.length) {
+    return callback(null, {});
+  }
+
   var count = 0;
-  var missing = {};
+  var missing = new utils.Map();
 
   function addToMissing(id, revId) {
-    if (!missing[id]) {
-      missing[id] = {missing: []};
+    if (!missing.has(id)) {
+      missing.set(id, {missing: []});
     }
-    missing[id].missing.push(revId);
+    missing.get(id).missing.push(revId);
   }
 
   function processDoc(id, rev_tree) {
@@ -361,7 +377,7 @@ AbstractPouchDB.prototype.revsDiff =
   ids.map(function (id) {
     this._getRevisionTree(id, function (err, rev_tree) {
       if (err && err.name === 'not_found' && err.message === 'missing') {
-        missing[id] = {missing: req[id]};
+        missing.set(id, {missing: req[id]});
       } else if (err) {
         return callback(err);
       } else {
@@ -369,7 +385,12 @@ AbstractPouchDB.prototype.revsDiff =
       }
 
       if (++count === ids.length) {
-        return callback(null, missing);
+        // convert LazyMap to object
+        var missingObj = {};
+        missing.forEach(function (value, key) {
+          missingObj[key] = value;
+        });
+        return callback(null, missingObj);
       }
     });
   }, this);
@@ -739,7 +760,7 @@ AbstractPouchDB.prototype.registerDependentDatabase =
   });
 });
 
-},{"./changes":6,"./deps/errors":11,"./deps/upsert":12,"./merge":17,"./utils":22,"events":26}],2:[function(_dereq_,module,exports){
+},{"./changes":6,"./deps/errors":11,"./deps/upsert":13,"./merge":18,"./utils":23,"events":27}],2:[function(_dereq_,module,exports){
 "use strict";
 
 var CHANGES_BATCH_SIZE = 25;
@@ -1106,24 +1127,37 @@ function HttpPouch(opts, callback) {
   });
 
   // Delete the document given by doc from the database given by host.
-  api.remove = utils.adapterFun('remove', function (doc, opts, callback) {
-    // If no options were given, set the callback to be the second parameter
-    if (typeof opts === 'function') {
-      callback = opts;
-      opts = {};
-    }  else if (typeof opts === 'string') {
+  api.remove = utils.adapterFun('remove', function (docOrId, optsOrRev, opts, callback) {
+    var doc;
+    if (typeof optsOrRev === 'string') {
+      // id, rev, opts, callback style
       doc = {
-        _id: doc,
-        _rev: opts
+        _id: docOrId,
+        _rev: optsOrRev
       };
-    } else if (opts === undefined) {
-      opts = {};
+      if (typeof opts === 'function') {
+        callback = opts;
+        opts = {};
+      }
+    } else {
+      // doc, opts, callback style
+      doc = docOrId;
+      if (typeof optsOrRev === 'function') {
+        callback = optsOrRev;
+        opts = {};
+      } else {
+        callback = opts;
+        opts = optsOrRev;
+      }
     }
+
+    var rev = (doc._rev || opts.rev);
+
     // Delete the document
     ajax({
       headers: host.headers,
       method: 'DELETE',
-      url: genDBUrl(host, encodeDocId(doc._id)) + '?rev=' + doc._rev
+      url: genDBUrl(host, encodeDocId(doc._id)) + '?rev=' + rev
     }, callback);
   });
 
@@ -1613,7 +1647,7 @@ function HttpPouch(opts, callback) {
   // Given a set of document/revision IDs (given by req), tets the subset of
   // those that do NOT correspond to revisions stored in the database.
   // See http://wiki.apache.org/couchdb/HttpPostRevsDiff
-  api.revsDiff = utils.adapterFun('revsDif', function (req, opts, callback) {
+  api.revsDiff = utils.adapterFun('revsDiff', function (req, opts, callback) {
     // If no options were given, set the callback to be the second parameter
     if (typeof opts === 'function') {
       callback = opts;
@@ -1625,10 +1659,8 @@ function HttpPouch(opts, callback) {
       headers: host.headers,
       method: 'POST',
       url: genDBUrl(host, '_revs_diff'),
-      body: req
-    }, function (err, res) {
-      callback(err, res);
-    });
+      body: JSON.stringify(req)
+    }, callback);
   });
 
   api._close = function (callback) {
@@ -1676,7 +1708,7 @@ HttpPouch.valid = function () {
 
 module.exports = HttpPouch;
 
-},{"../deps/errors":11,"../utils":22}],3:[function(_dereq_,module,exports){
+},{"../deps/errors":11,"../utils":23}],3:[function(_dereq_,module,exports){
 (function (process,global){
 'use strict';
 
@@ -1976,22 +2008,27 @@ function init(api, opts, callback) {
                                 "Attachments need to be base64 encoded");
           return callback(err);
         }
-        att.digest = 'md5-' + utils.MD5(data);
         if (blobSupport) {
           var type = att.content_type;
           data = utils.fixBinary(data);
           att.data = utils.createBlob([data], {type: type});
         }
-        return finish();
+        utils.MD5(data).then(function (result) {
+          att.digest = 'md5-' + result;
+          finish();
+        });
+        return;
       }
       var reader = new FileReader();
       reader.onloadend = function (e) {
         var binary = utils.arrayBufferToBinaryString(this.result);
-        att.digest = 'md5-' + utils.MD5(binary);
         if (!blobSupport) {
           att.data = btoa(binary);
         }
-        finish();
+        utils.MD5(binary).then(function (result) {
+          att.digest = 'md5-' + result;
+          finish();
+        });
       };
       reader.readAsArrayBuffer(att.data);
     }
@@ -2680,9 +2717,15 @@ function init(api, opts, callback) {
     doc._doc_id_rev = id + '::' + doc._rev;
 
     var tx = opts.ctx;
+    var ret;
     if (!tx) {
       tx = idb.transaction([LOCAL_STORE], 'readwrite');
       tx.onerror = idbError(callback);
+      tx.oncomplete = function () {
+        if (ret) {
+          callback(null, ret);
+        }
+      };
     }
 
     var oStore = tx.objectStore(LOCAL_STORE);
@@ -2696,9 +2739,11 @@ function init(api, opts, callback) {
           callback(errors.REV_CONFLICT);
         } else { // update
           var req = oStore.put(doc);
-
           req.onsuccess = function () {
-            callback(null, {ok: true});
+            ret = {ok: true, id: doc._id, rev: doc._rev};
+            if (opts.ctx) { // return immediately
+              callback(null, ret);
+            }
           };
         }
       };
@@ -2710,7 +2755,10 @@ function init(api, opts, callback) {
         } else { // insert
           var req = oStore.put(doc);
           req.onsuccess = function () {
-            callback(null, {ok: true});
+            ret = {ok: true, id: doc._id, rev: doc._rev};
+            if (opts.ctx) { // return immediately
+              callback(null, ret);
+            }
           };
         }
       };
@@ -2719,6 +2767,12 @@ function init(api, opts, callback) {
 
   api._removeLocal = function (doc, callback) {
     var tx = idb.transaction([LOCAL_STORE], 'readwrite');
+    var res;
+    tx.oncomplete = function () {
+      if (res) {
+        callback(null, res);
+      }
+    };
     var docIdRev = doc._id + '::' + doc._rev;
     var oStore = tx.objectStore(LOCAL_STORE);
     var index = oStore.index('_doc_id_rev');
@@ -2734,7 +2788,7 @@ function init(api, opts, callback) {
         req.onsuccess = function (e) {
           var key = e.target.result;
           oStore["delete"](key);
-          callback(null, doc);
+          res = {ok: true, id: doc._id, rev: doc._rev};
         };
       }
     };
@@ -2891,7 +2945,7 @@ IdbPouch.Changes = new utils.Changes();
 module.exports = IdbPouch;
 
 }).call(this,_dereq_("/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../deps/errors":11,"../merge":17,"../utils":22,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":27}],4:[function(_dereq_,module,exports){
+},{"../deps/errors":11,"../merge":18,"../utils":23,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":28}],4:[function(_dereq_,module,exports){
 module.exports = ['idb', 'websql'];
 },{}],5:[function(_dereq_,module,exports){
 (function (global){
@@ -3009,7 +3063,7 @@ function WebSqlPouch(opts, callback) {
   var idRequests = [];
   var docCount = -1; // cache sqlite count(*) for performance
   var encoding;
-  
+
   var db = openDB(name, POUCH_VERSION, name, size);
   if (!db) {
     return callback(errors.UNKNOWN_ERROR);
@@ -3136,7 +3190,7 @@ function WebSqlPouch(opts, callback) {
       // initial schema
 
       var meta = 'CREATE TABLE IF NOT EXISTS ' + META_STORE +
-        ' (update_seq, dbid, db_version INTEGER)';
+        ' (update_seq INTEGER, dbid, db_version INTEGER)';
       var attach = 'CREATE TABLE IF NOT EXISTS ' + ATTACH_STORE +
         ' (digest, json, body BLOB)';
       var doc = 'CREATE TABLE IF NOT EXISTS ' + DOC_STORE +
@@ -3337,8 +3391,10 @@ function WebSqlPouch(opts, callback) {
       reader.onloadend = function (e) {
         var binary = utils.arrayBufferToBinaryString(this.result);
         att.data = binary;
-        att.digest = 'md5-' + utils.MD5(binary);
-        finish();
+        utils.MD5(binary).then(function (result) {
+          att.digest = 'md5-' + result;
+          finish();
+        });
       };
       reader.readAsArrayBuffer(att.data);
     }
@@ -3959,6 +4015,7 @@ function WebSqlPouch(opts, callback) {
     }
     var json = JSON.stringify(doc);
 
+    var ret;
     function putLocal(tx) {
       var sql;
       var values;
@@ -3972,9 +4029,13 @@ function WebSqlPouch(opts, callback) {
       }
       tx.executeSql(sql, values, function (tx, res) {
         if (res.rowsAffected) {
-          return callback(null, {ok: true});
+          ret = {ok: true, id: id, rev: doc._rev};
+          if (opts.ctx) { // return immediately
+            callback(null, ret);
+          }
+        } else {
+          callback(errors.REV_CONFLICT);
         }
-        callback(errors.REV_CONFLICT);
       }, function () {
         callback(errors.REV_CONFLICT);
       });
@@ -3985,11 +4046,16 @@ function WebSqlPouch(opts, callback) {
     } else {
       db.transaction(function (tx) {
         putLocal(tx);
-      }, unknownError(callback));
+      }, function () {}, function () {
+        if (ret) {
+          callback(null, ret);
+        }
+      });
     }
   };
 
   api._removeLocal = function (doc, callback) {
+    var ret;
     db.transaction(function (tx) {
       var sql = 'DELETE FROM ' + LOCAL_STORE + ' WHERE id=? AND rev=?';
       var params = [doc._id, doc._rev];
@@ -3997,8 +4063,10 @@ function WebSqlPouch(opts, callback) {
         if (!res.rowsAffected) {
           return callback(errors.REV_CONFLICT);
         }
-        return callback(null, {ok: true});
+        ret = {ok: true, id: doc._id, rev: doc._rev};
       });
+    }, unknownError(callback), function () {
+      callback(null, ret);
     });
   };
 }
@@ -4042,7 +4110,7 @@ WebSqlPouch.Changes = new utils.Changes();
 module.exports = WebSqlPouch;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"../deps/errors":11,"../merge":17,"../utils":22}],6:[function(_dereq_,module,exports){
+},{"../deps/errors":11,"../merge":18,"../utils":23}],6:[function(_dereq_,module,exports){
 'use strict';
 var utils = _dereq_('./utils');
 var merge = _dereq_('./merge');
@@ -4305,7 +4373,7 @@ Changes.prototype.filterChanges = function (opts) {
     });
   }
 };
-},{"./deps/errors":11,"./evalFilter":14,"./evalView":15,"./merge":17,"./utils":22,"events":26}],7:[function(_dereq_,module,exports){
+},{"./deps/errors":11,"./evalFilter":15,"./evalView":16,"./merge":18,"./utils":23,"events":27}],7:[function(_dereq_,module,exports){
 (function (global){
 /*globals cordova */
 "use strict";
@@ -4470,7 +4538,7 @@ function PouchDB(name, opts, callback) {
 module.exports = PouchDB;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./adapter":1,"./taskqueue":21,"./utils":22}],8:[function(_dereq_,module,exports){
+},{"./adapter":1,"./taskqueue":22,"./utils":23}],8:[function(_dereq_,module,exports){
 "use strict";
 
 var createBlob = _dereq_('./blob.js');
@@ -4592,6 +4660,12 @@ function ajax(options, adapterCallback) {
       }
       errObj = errors.error(errType);
     }
+    if (err.withCredentials && err.status === 0) {
+      // apparently this is what we get when the method
+      // is reported as not allowed by CORS. so fudge it
+      errObj.status = 405;
+      errObj.statusText = "Method Not Allowed";
+    }
     cb(errObj);
   }
 
@@ -4709,7 +4783,7 @@ function ajax(options, adapterCallback) {
 
 module.exports = ajax;
 
-},{"../utils":22,"./blob.js":9,"./errors":11}],9:[function(_dereq_,module,exports){
+},{"../utils":23,"./blob.js":9,"./errors":11}],9:[function(_dereq_,module,exports){
 (function (global){
 "use strict";
 
@@ -4742,10 +4816,9 @@ module.exports = createBlob;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],10:[function(_dereq_,module,exports){
-(function (global){
 'use strict';
-exports.Map = global.Map || LazyMap;
-exports.Set = global.Set || LazySet;
+exports.Map = LazyMap; // TODO: use ES6 map
+exports.Set = LazySet; // TODO: use ES6 set
 // based on https://github.com/montagejs/collections
 function LazyMap() {
   this.store = {};
@@ -4755,6 +4828,9 @@ LazyMap.prototype.mangle = function (key) {
     throw new TypeError("key must be a string but Got " + key);
   }
   return '$' + key;
+};
+LazyMap.prototype.unmangle = function (key) {
+  return key.substring(1);
 };
 LazyMap.prototype.get = function (key) {
   var mangled = this.mangle(key);
@@ -4781,6 +4857,16 @@ LazyMap.prototype["delete"] = function (key) {
   }
   return false;
 };
+LazyMap.prototype.forEach = function (cb) {
+  var self = this;
+  var keys = Object.keys(self.store);
+  keys.forEach(function (key) {
+    var value = self.store[key];
+    key = self.unmangle(key);
+    cb(value, key);
+  });
+};
+
 function LazySet() {
   this.store = new LazyMap();
 }
@@ -4793,7 +4879,6 @@ LazySet.prototype.has = function (key) {
 LazySet.prototype["delete"] = function (key) {
   return this.store["delete"](key);
 };
-}).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
 },{}],11:[function(_dereq_,module,exports){
 "use strict";
 
@@ -4926,6 +5011,94 @@ exports.error = function (error, reason, name) {
 };
 
 },{}],12:[function(_dereq_,module,exports){
+(function (process,global){
+'use strict';
+
+var crypto = _dereq_('crypto');
+var Md5 = _dereq_('spark-md5');
+var setImmediateShim = global.setImmediate || global.setTimeout;
+
+function sliceShim(arrayBuffer, begin, end) {
+  if (typeof arrayBuffer.slice === 'function') {
+    return arrayBuffer.slice(begin, end);
+  }
+  //
+  // shim for IE courtesy of http://stackoverflow.com/a/21440217
+  //
+  //If `begin` is unspecified, Chrome assumes 0, so we do the same
+  if (begin === void 0) {
+    begin = 0;
+  }
+
+  //If `end` is unspecified, the new ArrayBuffer contains all
+  //bytes from `begin` to the end of this ArrayBuffer.
+  if (end === void 0) {
+    end = arrayBuffer.byteLength;
+  }
+
+  //Chrome converts the values to integers via flooring
+  begin = Math.floor(begin);
+  end = Math.floor(end);
+
+  //If either `begin` or `end` is negative, it refers to an
+  //index from the end of the array, as opposed to from the beginning.
+  if (begin < 0) {
+    begin += arrayBuffer.byteLength;
+  }
+  if (end < 0) {
+    end += arrayBuffer.byteLength;
+  }
+
+  //The range specified by the `begin` and `end` values is clamped to the
+  //valid index range for the current array.
+  begin = Math.min(Math.max(0, begin), arrayBuffer.byteLength);
+  end = Math.min(Math.max(0, end), arrayBuffer.byteLength);
+
+  //If the computed length of the new ArrayBuffer would be negative, it
+  //is clamped to zero.
+  if (end - begin <= 0) {
+    return new ArrayBuffer(0);
+  }
+
+  var result = new ArrayBuffer(end - begin);
+  var resultBytes = new Uint8Array(result);
+  var sourceBytes = new Uint8Array(arrayBuffer, begin, end - begin);
+
+  resultBytes.set(sourceBytes);
+
+  return result;
+}
+
+module.exports = function (data, callback) {
+  if (!process.browser) {
+    callback(null, crypto.createHash('md5').update(data).digest('hex'));
+    return;
+  }
+  var chunkSize = Math.min(524288, data.length);
+  var chunks = Math.ceil(data.length / chunkSize);
+  var currentChunk = 0;
+  var buffer = new Md5();
+  function loadNextChunk() {
+    var start = currentChunk * chunkSize;
+    var end = start + chunkSize;
+    if ((start + chunkSize) >= data.size) {
+      end = data.size;
+    }
+    currentChunk++;
+    if (currentChunk < chunks) {
+      buffer.append(sliceShim(data, start, end));
+      setImmediateShim(loadNextChunk);
+    } else {
+      buffer.append(sliceShim(data, start, end));
+      callback(null, buffer.end());
+      buffer.destroy();
+    }
+  }
+  loadNextChunk();
+};
+
+}).call(this,_dereq_("/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":28,"crypto":26,"spark-md5":58}],13:[function(_dereq_,module,exports){
 'use strict';
 var Promise = _dereq_('../utils').Promise;
 
@@ -4976,7 +5149,7 @@ module.exports = function (db, docId, diffFun, cb) {
   }
 };
 
-},{"../utils":22}],13:[function(_dereq_,module,exports){
+},{"../utils":23}],14:[function(_dereq_,module,exports){
 "use strict";
 
 // BEGIN Math.uuid.js
@@ -5061,7 +5234,7 @@ function uuid(len, radix) {
 module.exports = uuid;
 
 
-},{}],14:[function(_dereq_,module,exports){
+},{}],15:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = evalFilter;
@@ -5073,7 +5246,7 @@ function evalFilter(input) {
     ' })()'
   ].join(''));
 }
-},{}],15:[function(_dereq_,module,exports){
+},{}],16:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = evalView;
@@ -5095,7 +5268,7 @@ function evalView(input) {
     '})()'
   ].join('\n'));
 }
-},{}],16:[function(_dereq_,module,exports){
+},{}],17:[function(_dereq_,module,exports){
 (function (process){
 "use strict";
 
@@ -5125,7 +5298,7 @@ if (!process.browser) {
 }
 
 }).call(this,_dereq_("/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"))
-},{"./adapters/http":2,"./adapters/idb":3,"./adapters/leveldb":25,"./adapters/websql":5,"./deps/ajax":8,"./deps/errors":11,"./replicate":18,"./setup":19,"./sync":20,"./utils":22,"./version":23,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":27,"pouchdb-extend":47,"pouchdb-mapreduce":50}],17:[function(_dereq_,module,exports){
+},{"./adapters/http":2,"./adapters/idb":3,"./adapters/leveldb":26,"./adapters/websql":5,"./deps/ajax":8,"./deps/errors":11,"./replicate":19,"./setup":20,"./sync":21,"./utils":23,"./version":24,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":28,"pouchdb-extend":47,"pouchdb-mapreduce":50}],18:[function(_dereq_,module,exports){
 'use strict';
 var extend = _dereq_('pouchdb-extend');
 
@@ -5401,7 +5574,7 @@ PouchMerge.rootToLeaf = function (tree) {
 
 module.exports = PouchMerge;
 
-},{"pouchdb-extend":47}],18:[function(_dereq_,module,exports){
+},{"pouchdb-extend":47}],19:[function(_dereq_,module,exports){
 'use strict';
 
 var MAX_OPEN_REVS = 50;
@@ -5461,7 +5634,9 @@ function genReplicationId(src, target, opts) {
     return target.id().then(function (target_id) {
       var queryData = src_id + target_id + filterFun +
         JSON.stringify(opts.query_params) + opts.doc_ids;
-      return '_local/' + utils.MD5(queryData);
+      return utils.MD5(queryData).then(function (md5) {
+        return '_local/' + md5;
+      });
     });
   });
 }
@@ -5500,7 +5675,9 @@ Checkpointer.prototype.updateSource = function (checkpoint) {
     return utils.Promise.resolve(true);
   }
   return updateCheckpoint(this.src, this.id, checkpoint)["catch"](function (err) {
-    if (err.status === 401) {
+    var isForbidden = typeof err.status === 'number' &&
+      Math.floor(err.status / 100) === 4;
+    if (isForbidden) {
       self.readOnlySource = true;
       return true;
     }
@@ -5967,7 +6144,7 @@ function replicateWrapper(src, target, opts, callback) {
 
 exports.replicate = replicateWrapper;
 
-},{"./index":16,"./utils":22,"events":26}],19:[function(_dereq_,module,exports){
+},{"./index":17,"./utils":23,"events":27}],20:[function(_dereq_,module,exports){
 (function (global){
 "use strict";
 
@@ -6173,7 +6350,7 @@ PouchDB.defaults = function (defaultOpts) {
 module.exports = PouchDB;
 
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./adapters/preferredAdapters.js":4,"./constructor":7,"./utils":22,"events":26}],20:[function(_dereq_,module,exports){
+},{"./adapters/preferredAdapters.js":4,"./constructor":7,"./utils":23,"events":27}],21:[function(_dereq_,module,exports){
 'use strict';
 var utils = _dereq_('./utils');
 var replicate = _dereq_('./replicate').replicate;
@@ -6320,7 +6497,7 @@ Sync.prototype.cancel = function () {
     this.pull.cancel();
   }
 };
-},{"./replicate":18,"./utils":22,"events":26}],21:[function(_dereq_,module,exports){
+},{"./replicate":19,"./utils":23,"events":27}],22:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = TaskQueue;
@@ -6390,12 +6567,10 @@ TaskQueue.prototype.addTask = function (name, parameters) {
   }
 };
 
-},{}],22:[function(_dereq_,module,exports){
+},{}],23:[function(_dereq_,module,exports){
 (function (process,global){
 /*jshint strict: false */
 /*global chrome */
-var crypto = _dereq_('crypto');
-var md5 = _dereq_('md5-jkmyers');
 var merge = _dereq_('./merge');
 exports.extend = _dereq_('pouchdb-extend');
 exports.ajax = _dereq_('./deps/ajax');
@@ -6432,14 +6607,20 @@ var reservedWords = toObject([
   '_conflicts',
   '_deleted_conflicts',
   '_local_seq',
-  '_rev_tree'
+  '_rev_tree',
+  //replication documents
+  '_replication_id',
+  '_replication_state',
+  '_replication_state_time',
+  '_replication_state_reason',
+  '_replication_stats'
 ]);
 exports.clone = function (obj) {
   return exports.extend(true, {}, obj);
 };
 exports.inherits = _dereq_('inherits');
 // Determine id an ID is valid
-//   - invalid IDs begin with an underescore that does not begin '_design' or 
+//   - invalid IDs begin with an underescore that does not begin '_design' or
 //     '_local'
 //   - any other string value is a valid id
 // Returns the specific error object for each case
@@ -6597,9 +6778,8 @@ exports.parseDoc = function (doc, newEdits) {
     if (doc.hasOwnProperty(key)) {
       var specialKey = key[0] === '_';
       if (specialKey && !reservedWords[key]) {
-        error = errors.error(errors.DOC_VALIDATION);
-        error.reason += ': ' + key;
-        return error;
+        var base = errors.DOC_VALIDATION;
+        return errors.error(base, base.message + ': ' + key);
       } else if (specialKey && key !== '_attachments') {
         result.metadata[key.slice(1)] = doc[key];
       } else {
@@ -6933,19 +7113,13 @@ exports.cancellableFun = function (fun, self, opts) {
   promise.emit = emitter.emit.bind(emitter);
   return promise;
 };
-exports.Crypto = {};
-exports.MD5 = exports.Crypto.MD5 = function (string) {
-  if (!process.browser) {
-    return crypto.createHash('md5').update(string).digest('hex');
-  } else {
-    return md5(string);
-  }
-};
+
+exports.MD5 = exports.toPromise(_dereq_('./deps/md5'));
 }).call(this,_dereq_("/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./deps/ajax":8,"./deps/blob":9,"./deps/buffer":25,"./deps/collections":10,"./deps/errors":11,"./deps/uuid":13,"./merge":17,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":27,"argsarray":24,"bluebird":32,"crypto":25,"events":26,"inherits":28,"md5-jkmyers":46,"pouchdb-extend":47}],23:[function(_dereq_,module,exports){
+},{"./deps/ajax":8,"./deps/blob":9,"./deps/buffer":26,"./deps/collections":10,"./deps/errors":11,"./deps/md5":12,"./deps/uuid":14,"./merge":18,"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":28,"argsarray":25,"bluebird":33,"events":27,"inherits":29,"pouchdb-extend":47}],24:[function(_dereq_,module,exports){
 module.exports = "2.2.4-prerelease";
 
-},{}],24:[function(_dereq_,module,exports){
+},{}],25:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = argsArray;
@@ -6965,9 +7139,9 @@ function argsArray(fun) {
     }
   };
 }
-},{}],25:[function(_dereq_,module,exports){
-
 },{}],26:[function(_dereq_,module,exports){
+
+},{}],27:[function(_dereq_,module,exports){
 // Copyright Joyent, Inc. and other Node contributors.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a
@@ -7272,7 +7446,7 @@ function isUndefined(arg) {
   return arg === void 0;
 }
 
-},{}],27:[function(_dereq_,module,exports){
+},{}],28:[function(_dereq_,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -7327,7 +7501,7 @@ process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
 };
 
-},{}],28:[function(_dereq_,module,exports){
+},{}],29:[function(_dereq_,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -7352,13 +7526,13 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],29:[function(_dereq_,module,exports){
+},{}],30:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = INTERNAL;
 
 function INTERNAL() {}
-},{}],30:[function(_dereq_,module,exports){
+},{}],31:[function(_dereq_,module,exports){
 'use strict';
 var Promise = _dereq_('./promise');
 var reject = _dereq_('./reject');
@@ -7402,7 +7576,7 @@ module.exports = function all(iterable) {
     }
   }
 };
-},{"./INTERNAL":29,"./handlers":31,"./promise":33,"./reject":35,"./resolve":36}],31:[function(_dereq_,module,exports){
+},{"./INTERNAL":30,"./handlers":32,"./promise":34,"./reject":36,"./resolve":37}],32:[function(_dereq_,module,exports){
 'use strict';
 var tryCatch = _dereq_('./tryCatch');
 var resolveThenable = _dereq_('./resolveThenable');
@@ -7448,13 +7622,13 @@ function getThen(obj) {
     };
   }
 }
-},{"./resolveThenable":37,"./states":38,"./tryCatch":39}],32:[function(_dereq_,module,exports){
+},{"./resolveThenable":38,"./states":39,"./tryCatch":40}],33:[function(_dereq_,module,exports){
 module.exports = exports = _dereq_('./promise');
 
 exports.resolve = _dereq_('./resolve');
 exports.reject = _dereq_('./reject');
 exports.all = _dereq_('./all');
-},{"./all":30,"./promise":33,"./reject":35,"./resolve":36}],33:[function(_dereq_,module,exports){
+},{"./all":31,"./promise":34,"./reject":36,"./resolve":37}],34:[function(_dereq_,module,exports){
 'use strict';
 
 var unwrap = _dereq_('./unwrap');
@@ -7500,7 +7674,7 @@ Promise.prototype.then = function (onFulfilled, onRejected) {
   return promise;
 };
 
-},{"./INTERNAL":29,"./queueItem":34,"./resolveThenable":37,"./states":38,"./unwrap":40}],34:[function(_dereq_,module,exports){
+},{"./INTERNAL":30,"./queueItem":35,"./resolveThenable":38,"./states":39,"./unwrap":41}],35:[function(_dereq_,module,exports){
 'use strict';
 var handlers = _dereq_('./handlers');
 var unwrap = _dereq_('./unwrap');
@@ -7529,7 +7703,7 @@ QueueItem.prototype.callRejected = function (value) {
 QueueItem.prototype.otherCallRejected = function (value) {
   unwrap(this.promise, this.onRejected, value);
 };
-},{"./handlers":31,"./unwrap":40}],35:[function(_dereq_,module,exports){
+},{"./handlers":32,"./unwrap":41}],36:[function(_dereq_,module,exports){
 'use strict';
 
 var Promise = _dereq_('./promise');
@@ -7541,7 +7715,7 @@ function reject(reason) {
 	var promise = new Promise(INTERNAL);
 	return handlers.reject(promise, reason);
 }
-},{"./INTERNAL":29,"./handlers":31,"./promise":33}],36:[function(_dereq_,module,exports){
+},{"./INTERNAL":30,"./handlers":32,"./promise":34}],37:[function(_dereq_,module,exports){
 'use strict';
 
 var Promise = _dereq_('./promise');
@@ -7576,7 +7750,7 @@ function resolve(value) {
       return EMPTYSTRING;
   }
 }
-},{"./INTERNAL":29,"./handlers":31,"./promise":33}],37:[function(_dereq_,module,exports){
+},{"./INTERNAL":30,"./handlers":32,"./promise":34}],38:[function(_dereq_,module,exports){
 'use strict';
 var handlers = _dereq_('./handlers');
 var tryCatch = _dereq_('./tryCatch');
@@ -7609,13 +7783,13 @@ function safelyResolveThenable(self, thenable) {
   }
 }
 exports.safely = safelyResolveThenable;
-},{"./handlers":31,"./tryCatch":39}],38:[function(_dereq_,module,exports){
+},{"./handlers":32,"./tryCatch":40}],39:[function(_dereq_,module,exports){
 // Lazy man's symbols for states
 
 exports.REJECTED = ['REJECTED'];
 exports.FULFILLED = ['FULFILLED'];
 exports.PENDING = ['PENDING'];
-},{}],39:[function(_dereq_,module,exports){
+},{}],40:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = tryCatch;
@@ -7631,7 +7805,7 @@ function tryCatch(func, value) {
   }
   return out;
 }
-},{}],40:[function(_dereq_,module,exports){
+},{}],41:[function(_dereq_,module,exports){
 'use strict';
 
 var immediate = _dereq_('immediate');
@@ -7653,7 +7827,7 @@ function unwrap(promise, func, value) {
     }
   });
 }
-},{"./handlers":31,"immediate":41}],41:[function(_dereq_,module,exports){
+},{"./handlers":32,"immediate":42}],42:[function(_dereq_,module,exports){
 'use strict';
 var types = [
   _dereq_('./nextTick'),
@@ -7694,7 +7868,7 @@ function immediate(task) {
     scheduleDrain();
   }
 }
-},{"./messageChannel":42,"./mutation.js":43,"./nextTick":25,"./stateChange":44,"./timeout":45}],42:[function(_dereq_,module,exports){
+},{"./messageChannel":43,"./mutation.js":44,"./nextTick":26,"./stateChange":45,"./timeout":46}],43:[function(_dereq_,module,exports){
 (function (global){
 'use strict';
 
@@ -7715,7 +7889,7 @@ exports.install = function (func) {
   };
 };
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],43:[function(_dereq_,module,exports){
+},{}],44:[function(_dereq_,module,exports){
 (function (global){
 'use strict';
 //based off rsvp https://github.com/tildeio/rsvp.js
@@ -7740,7 +7914,7 @@ exports.install = function (handle) {
   };
 };
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],44:[function(_dereq_,module,exports){
+},{}],45:[function(_dereq_,module,exports){
 (function (global){
 'use strict';
 
@@ -7767,7 +7941,7 @@ exports.install = function (handle) {
   };
 };
 }).call(this,typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],45:[function(_dereq_,module,exports){
+},{}],46:[function(_dereq_,module,exports){
 'use strict';
 exports.test = function () {
   return true;
@@ -7778,8 +7952,6 @@ exports.install = function (t) {
     setTimeout(t, 0);
   };
 };
-},{}],46:[function(_dereq_,module,exports){
-!function(a,b){"function"==typeof define&&define.amd?define(b):"object"==typeof exports?module.exports=b():a.md5=b()}(this,function(){function a(a,b){var g=a[0],h=a[1],i=a[2],j=a[3];g=c(g,h,i,j,b[0],7,-680876936),j=c(j,g,h,i,b[1],12,-389564586),i=c(i,j,g,h,b[2],17,606105819),h=c(h,i,j,g,b[3],22,-1044525330),g=c(g,h,i,j,b[4],7,-176418897),j=c(j,g,h,i,b[5],12,1200080426),i=c(i,j,g,h,b[6],17,-1473231341),h=c(h,i,j,g,b[7],22,-45705983),g=c(g,h,i,j,b[8],7,1770035416),j=c(j,g,h,i,b[9],12,-1958414417),i=c(i,j,g,h,b[10],17,-42063),h=c(h,i,j,g,b[11],22,-1990404162),g=c(g,h,i,j,b[12],7,1804603682),j=c(j,g,h,i,b[13],12,-40341101),i=c(i,j,g,h,b[14],17,-1502002290),h=c(h,i,j,g,b[15],22,1236535329),g=d(g,h,i,j,b[1],5,-165796510),j=d(j,g,h,i,b[6],9,-1069501632),i=d(i,j,g,h,b[11],14,643717713),h=d(h,i,j,g,b[0],20,-373897302),g=d(g,h,i,j,b[5],5,-701558691),j=d(j,g,h,i,b[10],9,38016083),i=d(i,j,g,h,b[15],14,-660478335),h=d(h,i,j,g,b[4],20,-405537848),g=d(g,h,i,j,b[9],5,568446438),j=d(j,g,h,i,b[14],9,-1019803690),i=d(i,j,g,h,b[3],14,-187363961),h=d(h,i,j,g,b[8],20,1163531501),g=d(g,h,i,j,b[13],5,-1444681467),j=d(j,g,h,i,b[2],9,-51403784),i=d(i,j,g,h,b[7],14,1735328473),h=d(h,i,j,g,b[12],20,-1926607734),g=e(g,h,i,j,b[5],4,-378558),j=e(j,g,h,i,b[8],11,-2022574463),i=e(i,j,g,h,b[11],16,1839030562),h=e(h,i,j,g,b[14],23,-35309556),g=e(g,h,i,j,b[1],4,-1530992060),j=e(j,g,h,i,b[4],11,1272893353),i=e(i,j,g,h,b[7],16,-155497632),h=e(h,i,j,g,b[10],23,-1094730640),g=e(g,h,i,j,b[13],4,681279174),j=e(j,g,h,i,b[0],11,-358537222),i=e(i,j,g,h,b[3],16,-722521979),h=e(h,i,j,g,b[6],23,76029189),g=e(g,h,i,j,b[9],4,-640364487),j=e(j,g,h,i,b[12],11,-421815835),i=e(i,j,g,h,b[15],16,530742520),h=e(h,i,j,g,b[2],23,-995338651),g=f(g,h,i,j,b[0],6,-198630844),j=f(j,g,h,i,b[7],10,1126891415),i=f(i,j,g,h,b[14],15,-1416354905),h=f(h,i,j,g,b[5],21,-57434055),g=f(g,h,i,j,b[12],6,1700485571),j=f(j,g,h,i,b[3],10,-1894986606),i=f(i,j,g,h,b[10],15,-1051523),h=f(h,i,j,g,b[1],21,-2054922799),g=f(g,h,i,j,b[8],6,1873313359),j=f(j,g,h,i,b[15],10,-30611744),i=f(i,j,g,h,b[6],15,-1560198380),h=f(h,i,j,g,b[13],21,1309151649),g=f(g,h,i,j,b[4],6,-145523070),j=f(j,g,h,i,b[11],10,-1120210379),i=f(i,j,g,h,b[2],15,718787259),h=f(h,i,j,g,b[9],21,-343485551),a[0]=l(g,a[0]),a[1]=l(h,a[1]),a[2]=l(i,a[2]),a[3]=l(j,a[3])}function b(a,b,c,d,e,f){return b=l(l(b,a),l(d,f)),l(b<<e|b>>>32-e,c)}function c(a,c,d,e,f,g,h){return b(c&d|~c&e,a,c,f,g,h)}function d(a,c,d,e,f,g,h){return b(c&e|d&~e,a,c,f,g,h)}function e(a,c,d,e,f,g,h){return b(c^d^e,a,c,f,g,h)}function f(a,c,d,e,f,g,h){return b(d^(c|~e),a,c,f,g,h)}function g(b){txt="";var c,d=b.length,e=[1732584193,-271733879,-1732584194,271733878];for(c=64;c<=b.length;c+=64)a(e,h(b.substring(c-64,c)));b=b.substring(c-64);var f=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];for(c=0;c<b.length;c++)f[c>>2]|=b.charCodeAt(c)<<(c%4<<3);if(f[c>>2]|=128<<(c%4<<3),c>55)for(a(e,f),c=0;16>c;c++)f[c]=0;return f[14]=8*d,a(e,f),e}function h(a){var b,c=[];for(b=0;64>b;b+=4)c[b>>2]=a.charCodeAt(b)+(a.charCodeAt(b+1)<<8)+(a.charCodeAt(b+2)<<16)+(a.charCodeAt(b+3)<<24);return c}function i(a){for(var b="",c=0;4>c;c++)b+=m[a>>8*c+4&15]+m[a>>8*c&15];return b}function j(a){for(var b=0;b<a.length;b++)a[b]=i(a[b]);return a.join("")}function k(a){return j(g(a))}function l(a,b){return a+b&4294967295}function l(a,b){var c=(65535&a)+(65535&b),d=(a>>16)+(b>>16)+(c>>16);return d<<16|65535&c}var m="0123456789abcdef".split("");return"5d41402abc4b2a76b9719d911017c592"!=k("hello"),k});
 },{}],47:[function(_dereq_,module,exports){
 "use strict";
 
@@ -8007,7 +8179,7 @@ module.exports = function (opts) {
   });
 };
 
-},{"./upsert":55,"./utils":56}],49:[function(_dereq_,module,exports){
+},{"./upsert":56,"./utils":57}],49:[function(_dereq_,module,exports){
 'use strict';
 
 module.exports = function (func, emit, sum, log, isArray, toJSON) {
@@ -8742,7 +8914,7 @@ function QueryParseError(message) {
 
 utils.inherits(QueryParseError, Error);
 
-},{"./create-view":48,"./evalfunc":49,"./taskqueue":54,"./utils":56,"pouchdb-collate":52}],51:[function(_dereq_,module,exports){
+},{"./create-view":48,"./evalfunc":49,"./taskqueue":55,"./utils":57,"pouchdb-collate":53}],51:[function(_dereq_,module,exports){
 var hasOwn = Object.prototype.hasOwnProperty;
 var toString = Object.prototype.toString;
 var undefined;
@@ -8825,6 +8997,8 @@ module.exports = function extend() {
 
 
 },{}],52:[function(_dereq_,module,exports){
+!function(a,b){"function"==typeof define&&define.amd?define(b):"object"==typeof exports?module.exports=b():a.md5=b()}(this,function(){function a(a,b){var g=a[0],h=a[1],i=a[2],j=a[3];g=c(g,h,i,j,b[0],7,-680876936),j=c(j,g,h,i,b[1],12,-389564586),i=c(i,j,g,h,b[2],17,606105819),h=c(h,i,j,g,b[3],22,-1044525330),g=c(g,h,i,j,b[4],7,-176418897),j=c(j,g,h,i,b[5],12,1200080426),i=c(i,j,g,h,b[6],17,-1473231341),h=c(h,i,j,g,b[7],22,-45705983),g=c(g,h,i,j,b[8],7,1770035416),j=c(j,g,h,i,b[9],12,-1958414417),i=c(i,j,g,h,b[10],17,-42063),h=c(h,i,j,g,b[11],22,-1990404162),g=c(g,h,i,j,b[12],7,1804603682),j=c(j,g,h,i,b[13],12,-40341101),i=c(i,j,g,h,b[14],17,-1502002290),h=c(h,i,j,g,b[15],22,1236535329),g=d(g,h,i,j,b[1],5,-165796510),j=d(j,g,h,i,b[6],9,-1069501632),i=d(i,j,g,h,b[11],14,643717713),h=d(h,i,j,g,b[0],20,-373897302),g=d(g,h,i,j,b[5],5,-701558691),j=d(j,g,h,i,b[10],9,38016083),i=d(i,j,g,h,b[15],14,-660478335),h=d(h,i,j,g,b[4],20,-405537848),g=d(g,h,i,j,b[9],5,568446438),j=d(j,g,h,i,b[14],9,-1019803690),i=d(i,j,g,h,b[3],14,-187363961),h=d(h,i,j,g,b[8],20,1163531501),g=d(g,h,i,j,b[13],5,-1444681467),j=d(j,g,h,i,b[2],9,-51403784),i=d(i,j,g,h,b[7],14,1735328473),h=d(h,i,j,g,b[12],20,-1926607734),g=e(g,h,i,j,b[5],4,-378558),j=e(j,g,h,i,b[8],11,-2022574463),i=e(i,j,g,h,b[11],16,1839030562),h=e(h,i,j,g,b[14],23,-35309556),g=e(g,h,i,j,b[1],4,-1530992060),j=e(j,g,h,i,b[4],11,1272893353),i=e(i,j,g,h,b[7],16,-155497632),h=e(h,i,j,g,b[10],23,-1094730640),g=e(g,h,i,j,b[13],4,681279174),j=e(j,g,h,i,b[0],11,-358537222),i=e(i,j,g,h,b[3],16,-722521979),h=e(h,i,j,g,b[6],23,76029189),g=e(g,h,i,j,b[9],4,-640364487),j=e(j,g,h,i,b[12],11,-421815835),i=e(i,j,g,h,b[15],16,530742520),h=e(h,i,j,g,b[2],23,-995338651),g=f(g,h,i,j,b[0],6,-198630844),j=f(j,g,h,i,b[7],10,1126891415),i=f(i,j,g,h,b[14],15,-1416354905),h=f(h,i,j,g,b[5],21,-57434055),g=f(g,h,i,j,b[12],6,1700485571),j=f(j,g,h,i,b[3],10,-1894986606),i=f(i,j,g,h,b[10],15,-1051523),h=f(h,i,j,g,b[1],21,-2054922799),g=f(g,h,i,j,b[8],6,1873313359),j=f(j,g,h,i,b[15],10,-30611744),i=f(i,j,g,h,b[6],15,-1560198380),h=f(h,i,j,g,b[13],21,1309151649),g=f(g,h,i,j,b[4],6,-145523070),j=f(j,g,h,i,b[11],10,-1120210379),i=f(i,j,g,h,b[2],15,718787259),h=f(h,i,j,g,b[9],21,-343485551),a[0]=l(g,a[0]),a[1]=l(h,a[1]),a[2]=l(i,a[2]),a[3]=l(j,a[3])}function b(a,b,c,d,e,f){return b=l(l(b,a),l(d,f)),l(b<<e|b>>>32-e,c)}function c(a,c,d,e,f,g,h){return b(c&d|~c&e,a,c,f,g,h)}function d(a,c,d,e,f,g,h){return b(c&e|d&~e,a,c,f,g,h)}function e(a,c,d,e,f,g,h){return b(c^d^e,a,c,f,g,h)}function f(a,c,d,e,f,g,h){return b(d^(c|~e),a,c,f,g,h)}function g(b){txt="";var c,d=b.length,e=[1732584193,-271733879,-1732584194,271733878];for(c=64;c<=b.length;c+=64)a(e,h(b.substring(c-64,c)));b=b.substring(c-64);var f=[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];for(c=0;c<b.length;c++)f[c>>2]|=b.charCodeAt(c)<<(c%4<<3);if(f[c>>2]|=128<<(c%4<<3),c>55)for(a(e,f),c=0;16>c;c++)f[c]=0;return f[14]=8*d,a(e,f),e}function h(a){var b,c=[];for(b=0;64>b;b+=4)c[b>>2]=a.charCodeAt(b)+(a.charCodeAt(b+1)<<8)+(a.charCodeAt(b+2)<<16)+(a.charCodeAt(b+3)<<24);return c}function i(a){for(var b="",c=0;4>c;c++)b+=m[a>>8*c+4&15]+m[a>>8*c&15];return b}function j(a){for(var b=0;b<a.length;b++)a[b]=i(a[b]);return a.join("")}function k(a){return j(g(a))}function l(a,b){return a+b&4294967295}function l(a,b){var c=(65535&a)+(65535&b),d=(a>>16)+(b>>16)+(c>>16);return d<<16|65535&c}var m="0123456789abcdef".split("");return"5d41402abc4b2a76b9719d911017c592"!=k("hello"),k});
+},{}],53:[function(_dereq_,module,exports){
 'use strict';
 
 var MIN_MAGNITUDE = -324; // verified by -Number.MIN_VALUE
@@ -9047,7 +9221,7 @@ function numToIndexableString(num) {
   return result;
 }
 
-},{"./utils":53}],53:[function(_dereq_,module,exports){
+},{"./utils":54}],54:[function(_dereq_,module,exports){
 'use strict';
 
 function pad(str, padWith, upToLength) {
@@ -9118,7 +9292,7 @@ exports.intToDecimalForm = function (int) {
 
   return result;
 };
-},{}],54:[function(_dereq_,module,exports){
+},{}],55:[function(_dereq_,module,exports){
 'use strict';
 /*
  * Simple task queue to sequentialize actions. Assumes callbacks will eventually fire (once).
@@ -9143,7 +9317,7 @@ TaskQueue.prototype.finish = function () {
 
 module.exports = TaskQueue;
 
-},{"./utils":56}],55:[function(_dereq_,module,exports){
+},{"./utils":57}],56:[function(_dereq_,module,exports){
 'use strict';
 var Promise = _dereq_('./utils').Promise;
 
@@ -9186,7 +9360,7 @@ function tryAndPut(db, doc, diffFun) {
 
 module.exports = upsert;
 
-},{"./utils":56}],56:[function(_dereq_,module,exports){
+},{"./utils":57}],57:[function(_dereq_,module,exports){
 (function (process,global){
 'use strict';
 /* istanbul ignore if */
@@ -9277,6 +9451,607 @@ exports.MD5 = function (string) {
   }
 };
 }).call(this,_dereq_("/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js"),typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":27,"argsarray":24,"crypto":25,"extend":51,"inherits":28,"lie":32,"md5-jkmyers":46}]},{},[16])
-(16)
+},{"/Users/nolan/workspace/pouchdb/node_modules/browserify/node_modules/insert-module-globals/node_modules/process/browser.js":28,"argsarray":25,"crypto":26,"extend":51,"inherits":29,"lie":33,"md5-jkmyers":52}],58:[function(_dereq_,module,exports){
+/*jshint bitwise:false*/
+/*global unescape*/
+
+(function (factory) {
+    if (typeof exports === 'object') {
+        // Node/CommonJS
+        module.exports = factory();
+    } else if (typeof define === 'function' && define.amd) {
+        // AMD
+        define(factory);
+    } else {
+        // Browser globals (with support for web workers)
+        var glob;
+        try {
+            glob = window;
+        } catch (e) {
+            glob = self;
+        }
+
+        glob.SparkMD5 = factory();
+    }
+}(function (undefined) {
+
+    'use strict';
+
+    ////////////////////////////////////////////////////////////////////////////
+
+    /*
+     * Fastest md5 implementation around (JKM md5)
+     * Credits: Joseph Myers
+     *
+     * @see http://www.myersdaily.org/joseph/javascript/md5-text.html
+     * @see http://jsperf.com/md5-shootout/7
+     */
+
+    /* this function is much faster,
+      so if possible we use it. Some IEs
+      are the only ones I know of that
+      need the idiotic second function,
+      generated by an if clause.  */
+    var add32 = function (a, b) {
+        return (a + b) & 0xFFFFFFFF;
+    },
+
+    cmn = function (q, a, b, x, s, t) {
+        a = add32(add32(a, q), add32(x, t));
+        return add32((a << s) | (a >>> (32 - s)), b);
+    },
+
+    ff = function (a, b, c, d, x, s, t) {
+        return cmn((b & c) | ((~b) & d), a, b, x, s, t);
+    },
+
+    gg = function (a, b, c, d, x, s, t) {
+        return cmn((b & d) | (c & (~d)), a, b, x, s, t);
+    },
+
+    hh = function (a, b, c, d, x, s, t) {
+        return cmn(b ^ c ^ d, a, b, x, s, t);
+    },
+
+    ii = function (a, b, c, d, x, s, t) {
+        return cmn(c ^ (b | (~d)), a, b, x, s, t);
+    },
+
+    md5cycle = function (x, k) {
+        var a = x[0],
+            b = x[1],
+            c = x[2],
+            d = x[3];
+
+        a = ff(a, b, c, d, k[0], 7, -680876936);
+        d = ff(d, a, b, c, k[1], 12, -389564586);
+        c = ff(c, d, a, b, k[2], 17, 606105819);
+        b = ff(b, c, d, a, k[3], 22, -1044525330);
+        a = ff(a, b, c, d, k[4], 7, -176418897);
+        d = ff(d, a, b, c, k[5], 12, 1200080426);
+        c = ff(c, d, a, b, k[6], 17, -1473231341);
+        b = ff(b, c, d, a, k[7], 22, -45705983);
+        a = ff(a, b, c, d, k[8], 7, 1770035416);
+        d = ff(d, a, b, c, k[9], 12, -1958414417);
+        c = ff(c, d, a, b, k[10], 17, -42063);
+        b = ff(b, c, d, a, k[11], 22, -1990404162);
+        a = ff(a, b, c, d, k[12], 7, 1804603682);
+        d = ff(d, a, b, c, k[13], 12, -40341101);
+        c = ff(c, d, a, b, k[14], 17, -1502002290);
+        b = ff(b, c, d, a, k[15], 22, 1236535329);
+
+        a = gg(a, b, c, d, k[1], 5, -165796510);
+        d = gg(d, a, b, c, k[6], 9, -1069501632);
+        c = gg(c, d, a, b, k[11], 14, 643717713);
+        b = gg(b, c, d, a, k[0], 20, -373897302);
+        a = gg(a, b, c, d, k[5], 5, -701558691);
+        d = gg(d, a, b, c, k[10], 9, 38016083);
+        c = gg(c, d, a, b, k[15], 14, -660478335);
+        b = gg(b, c, d, a, k[4], 20, -405537848);
+        a = gg(a, b, c, d, k[9], 5, 568446438);
+        d = gg(d, a, b, c, k[14], 9, -1019803690);
+        c = gg(c, d, a, b, k[3], 14, -187363961);
+        b = gg(b, c, d, a, k[8], 20, 1163531501);
+        a = gg(a, b, c, d, k[13], 5, -1444681467);
+        d = gg(d, a, b, c, k[2], 9, -51403784);
+        c = gg(c, d, a, b, k[7], 14, 1735328473);
+        b = gg(b, c, d, a, k[12], 20, -1926607734);
+
+        a = hh(a, b, c, d, k[5], 4, -378558);
+        d = hh(d, a, b, c, k[8], 11, -2022574463);
+        c = hh(c, d, a, b, k[11], 16, 1839030562);
+        b = hh(b, c, d, a, k[14], 23, -35309556);
+        a = hh(a, b, c, d, k[1], 4, -1530992060);
+        d = hh(d, a, b, c, k[4], 11, 1272893353);
+        c = hh(c, d, a, b, k[7], 16, -155497632);
+        b = hh(b, c, d, a, k[10], 23, -1094730640);
+        a = hh(a, b, c, d, k[13], 4, 681279174);
+        d = hh(d, a, b, c, k[0], 11, -358537222);
+        c = hh(c, d, a, b, k[3], 16, -722521979);
+        b = hh(b, c, d, a, k[6], 23, 76029189);
+        a = hh(a, b, c, d, k[9], 4, -640364487);
+        d = hh(d, a, b, c, k[12], 11, -421815835);
+        c = hh(c, d, a, b, k[15], 16, 530742520);
+        b = hh(b, c, d, a, k[2], 23, -995338651);
+
+        a = ii(a, b, c, d, k[0], 6, -198630844);
+        d = ii(d, a, b, c, k[7], 10, 1126891415);
+        c = ii(c, d, a, b, k[14], 15, -1416354905);
+        b = ii(b, c, d, a, k[5], 21, -57434055);
+        a = ii(a, b, c, d, k[12], 6, 1700485571);
+        d = ii(d, a, b, c, k[3], 10, -1894986606);
+        c = ii(c, d, a, b, k[10], 15, -1051523);
+        b = ii(b, c, d, a, k[1], 21, -2054922799);
+        a = ii(a, b, c, d, k[8], 6, 1873313359);
+        d = ii(d, a, b, c, k[15], 10, -30611744);
+        c = ii(c, d, a, b, k[6], 15, -1560198380);
+        b = ii(b, c, d, a, k[13], 21, 1309151649);
+        a = ii(a, b, c, d, k[4], 6, -145523070);
+        d = ii(d, a, b, c, k[11], 10, -1120210379);
+        c = ii(c, d, a, b, k[2], 15, 718787259);
+        b = ii(b, c, d, a, k[9], 21, -343485551);
+
+        x[0] = add32(a, x[0]);
+        x[1] = add32(b, x[1]);
+        x[2] = add32(c, x[2]);
+        x[3] = add32(d, x[3]);
+    },
+
+    /* there needs to be support for Unicode here,
+       * unless we pretend that we can redefine the MD-5
+       * algorithm for multi-byte characters (perhaps
+       * by adding every four 16-bit characters and
+       * shortening the sum to 32 bits). Otherwise
+       * I suggest performing MD-5 as if every character
+       * was two bytes--e.g., 0040 0025 = @%--but then
+       * how will an ordinary MD-5 sum be matched?
+       * There is no way to standardize text to something
+       * like UTF-8 before transformation; speed cost is
+       * utterly prohibitive. The JavaScript standard
+       * itself needs to look at this: it should start
+       * providing access to strings as preformed UTF-8
+       * 8-bit unsigned value arrays.
+       */
+    md5blk = function (s) {
+        var md5blks = [],
+            i; /* Andy King said do it this way. */
+
+        for (i = 0; i < 64; i += 4) {
+            md5blks[i >> 2] = s.charCodeAt(i) + (s.charCodeAt(i + 1) << 8) + (s.charCodeAt(i + 2) << 16) + (s.charCodeAt(i + 3) << 24);
+        }
+        return md5blks;
+    },
+
+    md5blk_array = function (a) {
+        var md5blks = [],
+            i; /* Andy King said do it this way. */
+
+        for (i = 0; i < 64; i += 4) {
+            md5blks[i >> 2] = a[i] + (a[i + 1] << 8) + (a[i + 2] << 16) + (a[i + 3] << 24);
+        }
+        return md5blks;
+    },
+
+    md51 = function (s) {
+        var n = s.length,
+            state = [1732584193, -271733879, -1732584194, 271733878],
+            i,
+            length,
+            tail,
+            tmp,
+            lo,
+            hi;
+
+        for (i = 64; i <= n; i += 64) {
+            md5cycle(state, md5blk(s.substring(i - 64, i)));
+        }
+        s = s.substring(i - 64);
+        length = s.length;
+        tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        for (i = 0; i < length; i += 1) {
+            tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+        }
+        tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+        if (i > 55) {
+            md5cycle(state, tail);
+            for (i = 0; i < 16; i += 1) {
+                tail[i] = 0;
+            }
+        }
+
+        // Beware that the final length might not fit in 32 bits so we take care of that
+        tmp = n * 8;
+        tmp = tmp.toString(16).match(/(.*?)(.{0,8})$/);
+        lo = parseInt(tmp[2], 16);
+        hi = parseInt(tmp[1], 16) || 0;
+
+        tail[14] = lo;
+        tail[15] = hi;
+
+        md5cycle(state, tail);
+        return state;
+    },
+
+    md51_array = function (a) {
+        var n = a.length,
+            state = [1732584193, -271733879, -1732584194, 271733878],
+            i,
+            length,
+            tail,
+            tmp,
+            lo,
+            hi;
+
+        for (i = 64; i <= n; i += 64) {
+            md5cycle(state, md5blk_array(a.subarray(i - 64, i)));
+        }
+
+        // Not sure if it is a bug, however IE10 will always produce a sub array of length 1
+        // containing the last element of the parent array if the sub array specified starts
+        // beyond the length of the parent array - weird.
+        // https://connect.microsoft.com/IE/feedback/details/771452/typed-array-subarray-issue
+        a = (i - 64) < n ? a.subarray(i - 64) : new Uint8Array(0);
+
+        length = a.length;
+        tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        for (i = 0; i < length; i += 1) {
+            tail[i >> 2] |= a[i] << ((i % 4) << 3);
+        }
+
+        tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+        if (i > 55) {
+            md5cycle(state, tail);
+            for (i = 0; i < 16; i += 1) {
+                tail[i] = 0;
+            }
+        }
+
+        // Beware that the final length might not fit in 32 bits so we take care of that
+        tmp = n * 8;
+        tmp = tmp.toString(16).match(/(.*?)(.{0,8})$/);
+        lo = parseInt(tmp[2], 16);
+        hi = parseInt(tmp[1], 16) || 0;
+
+        tail[14] = lo;
+        tail[15] = hi;
+
+        md5cycle(state, tail);
+
+        return state;
+    },
+
+    hex_chr = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'],
+
+    rhex = function (n) {
+        var s = '',
+            j;
+        for (j = 0; j < 4; j += 1) {
+            s += hex_chr[(n >> (j * 8 + 4)) & 0x0F] + hex_chr[(n >> (j * 8)) & 0x0F];
+        }
+        return s;
+    },
+
+    hex = function (x) {
+        var i;
+        for (i = 0; i < x.length; i += 1) {
+            x[i] = rhex(x[i]);
+        }
+        return x.join('');
+    },
+
+    md5 = function (s) {
+        return hex(md51(s));
+    },
+
+
+
+    ////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * SparkMD5 OOP implementation.
+     *
+     * Use this class to perform an incremental md5, otherwise use the
+     * static methods instead.
+     */
+    SparkMD5 = function () {
+        // call reset to init the instance
+        this.reset();
+    };
+
+
+    // In some cases the fast add32 function cannot be used..
+    if (md5('hello') !== '5d41402abc4b2a76b9719d911017c592') {
+        add32 = function (x, y) {
+            var lsw = (x & 0xFFFF) + (y & 0xFFFF),
+                msw = (x >> 16) + (y >> 16) + (lsw >> 16);
+            return (msw << 16) | (lsw & 0xFFFF);
+        };
+    }
+
+
+    /**
+     * Appends a string.
+     * A conversion will be applied if an utf8 string is detected.
+     *
+     * @param {String} str The string to be appended
+     *
+     * @return {SparkMD5} The instance itself
+     */
+    SparkMD5.prototype.append = function (str) {
+        // converts the string to utf8 bytes if necessary
+        if (/[\u0080-\uFFFF]/.test(str)) {
+            str = unescape(encodeURIComponent(str));
+        }
+
+        // then append as binary
+        this.appendBinary(str);
+
+        return this;
+    };
+
+    /**
+     * Appends a binary string.
+     *
+     * @param {String} contents The binary string to be appended
+     *
+     * @return {SparkMD5} The instance itself
+     */
+    SparkMD5.prototype.appendBinary = function (contents) {
+        this._buff += contents;
+        this._length += contents.length;
+
+        var length = this._buff.length,
+            i;
+
+        for (i = 64; i <= length; i += 64) {
+            md5cycle(this._state, md5blk(this._buff.substring(i - 64, i)));
+        }
+
+        this._buff = this._buff.substr(i - 64);
+
+        return this;
+    };
+
+    /**
+     * Finishes the incremental computation, reseting the internal state and
+     * returning the result.
+     * Use the raw parameter to obtain the raw result instead of the hex one.
+     *
+     * @param {Boolean} raw True to get the raw result, false to get the hex result
+     *
+     * @return {String|Array} The result
+     */
+    SparkMD5.prototype.end = function (raw) {
+        var buff = this._buff,
+            length = buff.length,
+            i,
+            tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            ret;
+
+        for (i = 0; i < length; i += 1) {
+            tail[i >> 2] |= buff.charCodeAt(i) << ((i % 4) << 3);
+        }
+
+        this._finish(tail, length);
+        ret = !!raw ? this._state : hex(this._state);
+
+        this.reset();
+
+        return ret;
+    };
+
+    /**
+     * Finish the final calculation based on the tail.
+     *
+     * @param {Array}  tail   The tail (will be modified)
+     * @param {Number} length The length of the remaining buffer
+     */
+    SparkMD5.prototype._finish = function (tail, length) {
+        var i = length,
+            tmp,
+            lo,
+            hi;
+
+        tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+        if (i > 55) {
+            md5cycle(this._state, tail);
+            for (i = 0; i < 16; i += 1) {
+                tail[i] = 0;
+            }
+        }
+
+        // Do the final computation based on the tail and length
+        // Beware that the final length may not fit in 32 bits so we take care of that
+        tmp = this._length * 8;
+        tmp = tmp.toString(16).match(/(.*?)(.{0,8})$/);
+        lo = parseInt(tmp[2], 16);
+        hi = parseInt(tmp[1], 16) || 0;
+
+        tail[14] = lo;
+        tail[15] = hi;
+        md5cycle(this._state, tail);
+    };
+
+    /**
+     * Resets the internal state of the computation.
+     *
+     * @return {SparkMD5} The instance itself
+     */
+    SparkMD5.prototype.reset = function () {
+        this._buff = "";
+        this._length = 0;
+        this._state = [1732584193, -271733879, -1732584194, 271733878];
+
+        return this;
+    };
+
+    /**
+     * Releases memory used by the incremental buffer and other aditional
+     * resources. If you plan to use the instance again, use reset instead.
+     */
+    SparkMD5.prototype.destroy = function () {
+        delete this._state;
+        delete this._buff;
+        delete this._length;
+    };
+
+
+    /**
+     * Performs the md5 hash on a string.
+     * A conversion will be applied if utf8 string is detected.
+     *
+     * @param {String}  str The string
+     * @param {Boolean} raw True to get the raw result, false to get the hex result
+     *
+     * @return {String|Array} The result
+     */
+    SparkMD5.hash = function (str, raw) {
+        // converts the string to utf8 bytes if necessary
+        if (/[\u0080-\uFFFF]/.test(str)) {
+            str = unescape(encodeURIComponent(str));
+        }
+
+        var hash = md51(str);
+
+        return !!raw ? hash : hex(hash);
+    };
+
+    /**
+     * Performs the md5 hash on a binary string.
+     *
+     * @param {String}  content The binary string
+     * @param {Boolean} raw     True to get the raw result, false to get the hex result
+     *
+     * @return {String|Array} The result
+     */
+    SparkMD5.hashBinary = function (content, raw) {
+        var hash = md51(content);
+
+        return !!raw ? hash : hex(hash);
+    };
+
+    /**
+     * SparkMD5 OOP implementation for array buffers.
+     *
+     * Use this class to perform an incremental md5 ONLY for array buffers.
+     */
+    SparkMD5.ArrayBuffer = function () {
+        // call reset to init the instance
+        this.reset();
+    };
+
+    ////////////////////////////////////////////////////////////////////////////
+
+    /**
+     * Appends an array buffer.
+     *
+     * @param {ArrayBuffer} arr The array to be appended
+     *
+     * @return {SparkMD5.ArrayBuffer} The instance itself
+     */
+    SparkMD5.ArrayBuffer.prototype.append = function (arr) {
+        // TODO: we could avoid the concatenation here but the algorithm would be more complex
+        //       if you find yourself needing extra performance, please make a PR.
+        var buff = this._concatArrayBuffer(this._buff, arr),
+            length = buff.length,
+            i;
+
+        this._length += arr.byteLength;
+
+        for (i = 64; i <= length; i += 64) {
+            md5cycle(this._state, md5blk_array(buff.subarray(i - 64, i)));
+        }
+
+        // Avoids IE10 weirdness (documented above)
+        this._buff = (i - 64) < length ? buff.subarray(i - 64) : new Uint8Array(0);
+
+        return this;
+    };
+
+    /**
+     * Finishes the incremental computation, reseting the internal state and
+     * returning the result.
+     * Use the raw parameter to obtain the raw result instead of the hex one.
+     *
+     * @param {Boolean} raw True to get the raw result, false to get the hex result
+     *
+     * @return {String|Array} The result
+     */
+    SparkMD5.ArrayBuffer.prototype.end = function (raw) {
+        var buff = this._buff,
+            length = buff.length,
+            tail = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            i,
+            ret;
+
+        for (i = 0; i < length; i += 1) {
+            tail[i >> 2] |= buff[i] << ((i % 4) << 3);
+        }
+
+        this._finish(tail, length);
+        ret = !!raw ? this._state : hex(this._state);
+
+        this.reset();
+
+        return ret;
+    };
+
+    SparkMD5.ArrayBuffer.prototype._finish = SparkMD5.prototype._finish;
+
+    /**
+     * Resets the internal state of the computation.
+     *
+     * @return {SparkMD5.ArrayBuffer} The instance itself
+     */
+    SparkMD5.ArrayBuffer.prototype.reset = function () {
+        this._buff = new Uint8Array(0);
+        this._length = 0;
+        this._state = [1732584193, -271733879, -1732584194, 271733878];
+
+        return this;
+    };
+
+    /**
+     * Releases memory used by the incremental buffer and other aditional
+     * resources. If you plan to use the instance again, use reset instead.
+     */
+    SparkMD5.ArrayBuffer.prototype.destroy = SparkMD5.prototype.destroy;
+
+    /**
+     * Concats two array buffers, returning a new one.
+     *
+     * @param  {ArrayBuffer} first  The first array buffer
+     * @param  {ArrayBuffer} second The second array buffer
+     *
+     * @return {ArrayBuffer} The new array buffer
+     */
+    SparkMD5.ArrayBuffer.prototype._concatArrayBuffer = function (first, second) {
+        var firstLength = first.length,
+            result = new Uint8Array(firstLength + second.byteLength);
+
+        result.set(first);
+        result.set(new Uint8Array(second), firstLength);
+
+        return result;
+    };
+
+    /**
+     * Performs the md5 hash on an array buffer.
+     *
+     * @param {ArrayBuffer} arr The array buffer
+     * @param {Boolean}     raw True to get the raw result, false to get the hex result
+     *
+     * @return {String|Array} The result
+     */
+    SparkMD5.ArrayBuffer.hash = function (arr, raw) {
+        var hash = md51_array(new Uint8Array(arr));
+
+        return !!raw ? hash : hex(hash);
+    };
+
+    return SparkMD5;
+}));
+
+},{}]},{},[17])
+(17)
 });

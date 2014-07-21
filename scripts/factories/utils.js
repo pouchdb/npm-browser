@@ -11,6 +11,16 @@ angular.module('browserNpmApp').factory('utils', function () {
       a = a.toLowerCase();
       b = b.toLowerCase();
       return a < b ? -1 : a > b ? 1 : 0;
+    },
+    pick: function (obj, keys) {
+      var res = {};
+      for (var i = 0, len = keys.length; i < len; i++) {
+        var key = keys[i];
+        if (key in obj) {
+          res[key] = obj[key];
+        }
+      }
+      return res;
     }
   };
 });

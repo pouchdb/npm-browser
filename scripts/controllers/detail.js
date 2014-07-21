@@ -18,19 +18,22 @@ angular.module('browserNpmApp').controller('DetailCtrl',
     console.log(err);
   });
 
-  function onGetDoc(module) {
-    var latestName = module['dist-tags'].latest;
-    var latest = module.versions[latestName];
-    var lastPublishedBy = latest._npmUser;
+  function onGetDoc(doc) {
+    var latestName = doc['dist-tags'].latest;
+    var latest = doc.versions[latestName];
+    var time = doc.time[latestName];
+    var lastPublishedTimeRelative = time ? moment(time).fromNow() : '(unknown)';
+    var lastPublishedBy = latest._npmUser || latest.author || latest.maintainers[0];
 
+    $scope.latest = latest;
     $scope.latestName = latestName;
     $scope.lastPublishedBy = lastPublishedBy;
-    $scope.lastPublishedTimeRelative = moment(module.time[latestName]).fromNow();
-    $scope.renderedMarkdown = $sce.trustAsHtml(markdown.toHTML(module.readme));
+    $scope.lastPublishedTimeRelative = lastPublishedTimeRelative;
+    $scope.renderedMarkdown = $sce.trustAsHtml(markdown.toHTML(doc.readme || ''));
   }
 
   $scope.getGravatarUrl = function (maintainer) {
-    if (!maintainer) {
+    if (!maintainer || !maintainer.email) {
       return '';
     }
     var md5sum = md5(maintainer.email);

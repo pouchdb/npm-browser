@@ -185,4 +185,11 @@ angular.module('browserNpmApp').controller('MainCtrl',
     pageService.pageStack = [];
     updatePage();
   }
+
+  $scope.getPercentProgress = function () {
+    if (!$scope.remoteDocCount) {
+      return 0;
+    }
+    return Math.floor(100 * $scope.docCount / $scope.remoteDocCount);
+  }
 });
