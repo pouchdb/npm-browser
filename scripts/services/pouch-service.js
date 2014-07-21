@@ -24,7 +24,7 @@ function PouchService (utils) {
         if (doc.time) {
           doc.time = utils.pick(doc.time, [latest]);
         }
-        if (doc.versions) {
+        if (doc.versions && doc.versions[latest]) {
           doc.versions = utils.pick(doc.versions, [latest]);
           doc.versions[latest] = utils.pick(doc.versions[latest],
             [
