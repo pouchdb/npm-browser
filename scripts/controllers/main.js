@@ -130,7 +130,7 @@ angular.module('browserNpmApp').controller('MainCtrl',
         var opts = {
           startkey: query[0],
           endkey: query[1] + '\uffff',
-          limit: PAGE_SIZE,
+          limit: PAGE_SIZE * 2,
           include_docs: true
         };
 
