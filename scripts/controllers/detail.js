@@ -37,7 +37,7 @@ angular.module('browserNpmApp').controller('DetailCtrl',
       return '';
     }
     var md5sum = md5(maintainer.email);
-    var url = 'https://secure.gravatar.com/avatar/' + md5sum + '?s=496&d=retro';
+    var url = 'https://secure.gravatar.com/avatar/' + md5sum + '?s=32&d=retro';
     return url;
   }
 });

@@ -33,16 +33,18 @@ img.gravatar {
     height: 32px;
 }
 
-.details-body {
-    margin: 0 100px 0 50px;
-}
-.jumbotron.details-jumbotron {
-    padding: 20px 50px;
-}
+@media (min-width: 768px) {
+    .details-body {
+        margin: 0 100px 0 50px;
+    }
+    .jumbotron.details-jumbotron {
+        padding: 20px 50px;
+    }
 
-.detail-container {
-    margin-right:auto;
-    margin-left:100px;
+    .detail-container {
+        margin-right:auto;
+        margin-left:100px;
+    }
 }
 
 .maintainer {
