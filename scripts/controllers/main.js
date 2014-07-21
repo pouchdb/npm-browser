@@ -15,10 +15,11 @@ angular.module('browserNpmApp').controller('MainCtrl',
   var remotePouch = pouchService.remotePouch;
 
   pouchService.onChange(updatePage);
+  pouchService.onComplete($scope.$apply);
 
   function fetchDocCount() {
-    localPouch.info().then(function (res) {
-      $scope.docCount = res.doc_count;
+    localPouch.allDocs({limit: 0}).then(function (res) {
+      $scope.docCount = res.total_rows;
       $scope.$apply();
     });
   }

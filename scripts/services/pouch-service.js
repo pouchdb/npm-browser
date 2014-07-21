@@ -46,12 +46,19 @@ function PouchService (utils) {
     })
     .on('complete', function () {
       self.syncComplete = true;
+      if (self.onCompleteListener) {
+        self.onCompleteListener();
+      }
     }
   );
 }
 
 PouchService.prototype.onChange = function (onChangeListener) {
   this.onChangeListener = onChangeListener;
+};
+
+PouchService.prototype.onComplete = function (onCompleteListener) {
+  this.onCompleteListener = onCompleteListener;
 };
 
 PouchService.prototype.getShortCouchUrl = function () {
