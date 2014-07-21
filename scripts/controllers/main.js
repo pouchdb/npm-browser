@@ -15,7 +15,9 @@ angular.module('browserNpmApp').controller('MainCtrl',
   var remotePouch = pouchService.remotePouch;
 
   pouchService.onChange(updatePage);
-  pouchService.onComplete($scope.$apply);
+  pouchService.onComplete(function () {
+    $scope.$apply()
+  });
 
   function fetchDocCount() {
     localPouch.allDocs({limit: 0}).then(function (res) {
