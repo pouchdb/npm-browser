@@ -1,6 +1,6 @@
-.input-group {
-    max-width: 200px;
+.input-group .form-control {
     min-width: 125px;
+    max-width: 200px;
 }
 
 @media (max-width: 767px) {
@@ -19,8 +19,8 @@
     td,th { 
       font-size: 12px;
     }
-    input.form-control { 
-      font-size: 12px;
+    .input-group .form-control {
+        font-size: 12px;
     }
 }
 
@@ -44,6 +44,9 @@ img.gravatar {
     .detail-container {
         margin-right:auto;
         margin-left:100px;
+    }
+    .input-group .form-control {
+        max-width: 250px;
     }
 }
 
