@@ -1,7 +1,7 @@
 'use strict';
 
-//var COUCHDB_URL = 'https://skimdb.iriscouch.com/registry';
-var COUCHDB_URL = 'http://localhost:5984/skimdb';
+var COUCHDB_URL = 'https://skimdb.iriscouch.com/registry';
+//var COUCHDB_URL = 'http://localhost:5984/skimdb';
 
 function PouchService (utils) {
   var self = this;
