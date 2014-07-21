@@ -53,3 +53,7 @@ img.gravatar {
 .maintainer {
     margin-top: 2px;
 }
+
+.break-words {
+    word-break: break-word;
+}
