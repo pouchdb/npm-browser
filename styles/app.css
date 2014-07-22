@@ -1,5 +1,5 @@
 .input-group {
-    max-width: 200px;
+    max-width: 175px;
     min-width: 125px;
 }
 
@@ -16,15 +16,26 @@
     .btn {
       font-size: 12px;
     }
-    td,th { 
+    .table > td,th {
       font-size: 12px;
     }
     input.form-control { 
       font-size: 12px;
     }
+    .hide-on-mobile {
+        display: none;
+    }
+    .container {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+    body {
+        padding-top: 8px;
+        padding-bottom: 8px;
+    }
 }
 
-td.fixed-width {
+.table > td.fixed-width {
   width: 150px;
 }
 
@@ -56,4 +67,14 @@ img.gravatar {
 
 .break-words {
     word-break: break-word;
+}
+
+.invisible {
+    visibility: hidden;
+}
+
+.btn-paginate {
+    min-width: 100px;
+    max-width: 150px;
+    margin: 0 2px;
 }
