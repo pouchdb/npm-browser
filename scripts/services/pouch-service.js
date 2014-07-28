@@ -1,6 +1,6 @@
 'use strict';
 
-var COUCHDB_URL = 'https://skimdb.iriscouch.com/registry';
+var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
 //var COUCHDB_URL = 'http://localhost:5984/skimdb';
 
 function PouchService (utils) {
@@ -37,20 +37,53 @@ function PouchService (utils) {
 
   self.remotePouch = new PouchDB(COUCHDB_URL);
   self.couchdbUrl = COUCHDB_URL;
+  self.disconnected = false;
 
-  self.localPouch.replicate.from(self.remotePouch, {batch_size: 500})
-    .on('change', function () {
-      if (self.onChangeListener) {
-        self.onChangeListener();
-      }
-    })
-    .on('complete', function () {
-      self.syncComplete = true;
-      if (self.onCompleteListener) {
-        self.onCompleteListener();
-      }
+  // replicate forever
+  var STARTING_RETRY_TIMEOUT = 1000;
+  var BACKOFF = 1.1;
+  var retryTimeout = STARTING_RETRY_TIMEOUT;
+  var inProgress = false;
+
+  function replicate() {
+    if (inProgress) {
+      return;
     }
-  );
+    inProgress = true;
+    self.localPouch.replicate.from(self.remotePouch, {batch_size: 500, live: true})
+      .on('change', function () {
+        retryTimeout = STARTING_RETRY_TIMEOUT;
+        self.disconnected = false;
+        if (self.onChangeListener) {
+          self.onChangeListener();
+        }
+      })
+      .on('uptodate', function () {
+        retryTimeout = STARTING_RETRY_TIMEOUT;
+        self.disconnected = false;
+        self.syncComplete = true;
+        if (self.onCompleteListener) {
+          self.onCompleteListener();
+        }
+      })
+      .on('error', function (err) {
+        console.log('error during replication');
+        if (err) {
+          console.log(err);
+        }
+        self.disconnected = true;
+        if (self.onErrorListener) {
+          self.onErrorListener();
+        }
+        if (inProgress) {
+          retryTimeout = Math.floor(retryTimeout * BACKOFF); // exponential backoff
+        }
+        inProgress = false;
+        setTimeout(replicate, retryTimeout);
+      }
+    );
+  }
+  replicate();
 }
 
 PouchService.prototype.onChange = function (onChangeListener) {
@@ -59,6 +92,10 @@ PouchService.prototype.onChange = function (onChangeListener) {
 
 PouchService.prototype.onComplete = function (onCompleteListener) {
   this.onCompleteListener = onCompleteListener;
+};
+
+PouchService.prototype.onError = function (onErrorListener) {
+  this.onErrorListener = onErrorListener;
 };
 
 PouchService.prototype.getShortCouchUrl = function () {

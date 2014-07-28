@@ -1,6 +1,10 @@
 
 <html ng-controller="MainCtrl">
   <body>
+    <small ng-show="pouchService.disconnected" class="text-muted pull-right offline-warning">
+      <i class="glyphicon glyphicon-off"></i>
+      You've gone offline.
+    </small>
     <div class="jumbotron">
       <h1>You now have npm in your browser.</h1>
       <p class="lead"><br/>

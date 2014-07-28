@@ -14,6 +14,9 @@ angular.module('browserNpmApp').controller('MainCtrl',
   var localPouch = pouchService.localPouch;
   var remotePouch = pouchService.remotePouch;
 
+  pouchService.onError(function () {
+    $scope.$apply();
+  });
   pouchService.onChange(updatePage);
   pouchService.onComplete(function () {
     $scope.$apply()

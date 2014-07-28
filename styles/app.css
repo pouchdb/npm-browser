@@ -78,3 +78,7 @@ img.gravatar {
     max-width: 150px;
     margin: 0 2px;
 }
+
+.offline-warning {
+    padding: 5px 10px;
+}
