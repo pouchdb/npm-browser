@@ -6,7 +6,7 @@ var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
 function PouchService (utils) {
   var self = this;
 
-  self.localPouch = new PouchDB('npm');
+  self.localPouch = new PouchDB('npm', {size: 3000});
 
   self.localPouch.filter({
     incoming: function (doc) {
@@ -39,7 +39,7 @@ function PouchService (utils) {
   self.couchdbUrl = COUCHDB_URL;
   self.disconnected = false;
 
-  // replicate forever
+  // keep retrying replication if we go offline
   var STARTING_RETRY_TIMEOUT = 1000;
   var BACKOFF = 1.1;
   var retryTimeout = STARTING_RETRY_TIMEOUT;
@@ -50,7 +50,7 @@ function PouchService (utils) {
       return;
     }
     inProgress = true;
-    self.localPouch.replicate.from(self.remotePouch, {batch_size: 500, live: true})
+    self.localPouch.replicate.from(self.remotePouch, {batch_size: 500})
       .on('change', function () {
         retryTimeout = STARTING_RETRY_TIMEOUT;
         self.disconnected = false;
@@ -58,7 +58,7 @@ function PouchService (utils) {
           self.onChangeListener();
         }
       })
-      .on('uptodate', function () {
+      .on('complete', function () {
         retryTimeout = STARTING_RETRY_TIMEOUT;
         self.disconnected = false;
         self.syncComplete = true;
