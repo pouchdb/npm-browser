@@ -6,7 +6,7 @@ var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
 function PouchService (utils) {
   var self = this;
 
-  self.localPouch = new PouchDB('npm', {size: 3000});
+  self.localPouch = new PouchDB('npm', {size: 2000});
 
   self.localPouch.filter({
     incoming: function (doc) {
