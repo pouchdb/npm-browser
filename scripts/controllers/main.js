@@ -3,6 +3,7 @@
 angular.module('browserNpmApp').controller('MainCtrl',
     function ($scope, pouchService, pageService, utils) {
 
+  var DEBOUNCE_DELAY = 10;
   var PAGE_SIZE = 10;
   var Promise = PouchDB.utils.Promise;
 
@@ -55,18 +56,18 @@ angular.module('browserNpmApp').controller('MainCtrl',
     }
     timeout = setTimeout(function () {
       updatePageAfterTimeout();
-    }, 50);
+    }, DEBOUNCE_DELAY);
   }
 
   function updatePageAfterTimeout() {
-    fetchDocCount();
-
     if (pageService.loading) {
       pageService.dirty = true;
       return;
     }
 
     pageService.loading = true;
+
+    fetchDocCount();
 
     function done() {
 
