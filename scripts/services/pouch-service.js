@@ -6,7 +6,12 @@ var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
 function PouchService (utils) {
   var self = this;
 
-  self.localPouch = new PouchDB('npm', {size: 2000});
+  // fall back from websql to indexedb due to
+  // ios 8 bug
+  self.localPouch = new PouchDB('npm', {adapter: 'websql', size: 2000});
+  if (!self.localPouch.adapter) {
+    self.localPouch = new PouchDB('npm');
+  }
 
   self.localPouch.filter({
     incoming: function (doc) {
