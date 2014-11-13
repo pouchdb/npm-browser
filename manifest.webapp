@@ -1,6 +1,7 @@
 {
   "name": "NPM Browser",
   "description": "Replicate NPM to your browser.",
+  "launch_path": "/index.html",
   "icons": {
     "512": "/img/icon-512x512.png",
     "128": "/img/icon-128x128.png"
