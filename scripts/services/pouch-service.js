@@ -2,7 +2,7 @@
 
 var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
 //var COUCHDB_URL = 'http://localhost:5984/skimdb';
-var INIT_REPL_BASE_URL = 'http://nolanlawson.s3.amazonaws.com/npm-browser';
+var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser';
 //var INIT_REPL_BASE_URL = '/www';
 
 var NUM_DUMP_FILES = 222;
