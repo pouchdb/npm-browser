@@ -15,6 +15,21 @@ The skim DB contains only project metadata (e.g. versions, maintainers, READMEs)
 
 In any case, since CouchDB uses the same replication protocol as PouchDB, the NPM Browser replicates the skim DB to your browser.
 
+Is this for real?
+----------
+
+Yes, if you wait long enough, it will actually sync all of NPM. You can then search it offline.
+
+We're not suggesting that storing nearly 1GB in your user's browser is a good idea. The point is to demonstrate that browsers are capable enough today to handle that load. In normal PouchDB application, we expect you'll have much less data.
+
+Why does Safari ask for 2GB up front?
+--------
+
+If you want to store more than 5MB data in WebSQL, Safari requires that you ask permission from the user. The other browsers are more lenient.
+
+Details can be found in [the PouchDB FAQs](http://pouchdb.com/faq.html#data_limits) and ["common errors" page](http://pouchdb.com/errors.html#not_enough_space).
+
+
 PouchDB tricks
 -------
 
@@ -36,9 +51,9 @@ Once initial replication is complete, the app switches over to regular replicati
 
 Unfortunately, since SkimDB still doesn't support CORS (as of this writing), we have a simple IrisCouch mirror set up at [http://skimdb.iriscouch.com/registry](http://skimdb.iriscouch.com/registry). Using the real Skim DB is a TODO.
 
-### Web SQL
+### WebSQL
 
-This app prefers Web SQL to IndexedDB because in Chrome it appears to perform better.
+This app prefers WebSQL to IndexedDB because in Chrome it appears to perform better.
 
 HTML5 tricks
 ------
