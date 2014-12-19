@@ -3,6 +3,21 @@ NPM Browser
 
 NPM Browser is an offline-first HTML5 app that replicates most of NPM into your browser. It's designed as a demo showcase for [PouchDB](http://pouchdb.com).
 
+Is this for real?
+----------
+
+Yes, if you wait long enough, it will actually store all of NPM's metadata locally. You can then search it offline.
+
+We're not suggesting that storing nearly 1GB in your user's browser is a good idea. The point is to demonstrate that browsers are capable enough today to handle that load. In a normal PouchDB application, we expect you'll have much less data.
+
+Why does Safari ask for 2GB up front?
+--------
+
+If you want to store more than 5MB data in WebSQL, Safari requires that you ask permission from the user. The other browsers are more lenient.
+
+Details can be found in [the PouchDB FAQs](http://pouchdb.com/faq.html#data_limits) and ["common errors" page](http://pouchdb.com/errors.html#not_enough_space).
+
+
 How it works
 ------
 
@@ -14,21 +29,6 @@ NPM is largely built on top of CouchDB. In fact, the main repository data is sto
 The skim DB contains only project metadata (e.g. versions, maintainers, READMEs), whereas the fullfat DB also contains tarball binaries.
 
 In any case, since CouchDB uses the same replication protocol as PouchDB, the NPM Browser replicates the skim DB to your browser.
-
-Is this for real?
-----------
-
-Yes, if you wait long enough, it will actually sync all of NPM. You can then search it offline.
-
-We're not suggesting that storing nearly 1GB in your user's browser is a good idea. The point is to demonstrate that browsers are capable enough today to handle that load. In normal PouchDB application, we expect you'll have much less data.
-
-Why does Safari ask for 2GB up front?
---------
-
-If you want to store more than 5MB data in WebSQL, Safari requires that you ask permission from the user. The other browsers are more lenient.
-
-Details can be found in [the PouchDB FAQs](http://pouchdb.com/faq.html#data_limits) and ["common errors" page](http://pouchdb.com/errors.html#not_enough_space).
-
 
 PouchDB tricks
 -------
