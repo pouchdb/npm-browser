@@ -71,14 +71,11 @@ function PouchService (utils, $rootScope) {
   // downloads a bunch of dump files from Amazon S3
   function doInitialReplication() {
     var localDocId = '_local/init_repl_done';
-    return self.localPouch.get(localDocId).catch(function (err) {
-      if (err.status !== 404) {
-        throw err;
-      }
-      var localDoc = {_id: localDocId, filesLoaded: -1};
-      return self.localPouch.put(localDoc).then(function () {
-        return self.localPouch.get(localDocId);
-      });
+    // putIfNotExists provided by the pouchdb-upsert plugin
+    return self.localPouch.putIfNotExists(localDocId, {
+      filesLoaded: -1
+    }).then(function () {
+      return self.localPouch.get(localDocId)
     }).then(function (localDoc) {
       var filesLoaded = localDoc.filesLoaded;
       if (filesLoaded === NUM_DUMP_FILES) {
@@ -96,10 +93,10 @@ function PouchService (utils, $rootScope) {
         series = series.then(function () {
           return self.localPouch.load(file, {proxy: COUCHDB_URL}).then(function () {
             handleSuccess();
-            return self.localPouch.get(localDocId);
-          }).then(function (localDoc) {
-            localDoc.filesLoaded = i;
-            return self.localPouch.put(localDoc);
+            // provided by the pouchdb-upsert plugin
+            return self.localPouch.upsert(localDocId, function () {
+              return {filesLoaded: i};
+            });
           });
         });
       });
