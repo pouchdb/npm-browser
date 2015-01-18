@@ -1,5 +1,5 @@
 CACHE MANIFEST
-# v12
+# v13
 CACHE:
 index.html
 favicon.ico
@@ -20,6 +20,7 @@ scripts/deps/md5.min.js
 scripts/deps/moment.min.js
 scripts/deps/pouchdb.filter-pouch.js
 scripts/deps/pouchdb.load.js
+scripts/deps/pouchdb.upsert.js
 scripts/deps/pouchdb.js
 scripts/factories/utils.js
 scripts/services/page-service.js
