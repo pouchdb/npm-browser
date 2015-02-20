@@ -55,7 +55,15 @@ Unfortunately, since SkimDB still doesn't support CORS (as of this writing), we 
 
 This app prefers WebSQL to IndexedDB because in Chrome it appears to perform better.
 
-HTML5 tricks
+AppCache tricks
 ------
 
-We use App Cache so that the app can work offline. Add it as a bookmark to your home screen, and notice how it still continues to work!
+We use AppCache so that the app can work offline. Add it as a bookmark to your home screen, and notice how it still continues to work! There are two parts to this:
+
+#### Updating AppCache
+
+AppCache is, to put it mildly, [an unsavory fellow](http://alistapart.com/article/application-cache-is-a-douchebag) at times. To work with it, we just [update a comment in the appcache file](https://github.com/pouchdb/npm-browser/blob/aa5c5fe703f92eecc9dc3bc3c1ad9eed3e712f97/manifest.appcache) whenever we make a change, to ensure that the browser downloads the latest version.
+
+#### Native homescreen icons
+
+In order to get the right icon added to the homescreen on iOS, Android, and FirefoxOS, icons are specified [in the index.html using the Apple format](https://github.com/pouchdb/npm-browser/blob/aa5c5fe703f92eecc9dc3bc3c1ad9eed3e712f97/index.html#L14-L23), as well as in a [manifest.webapp file, using the FirefoxOS format](https://github.com/pouchdb/npm-browser/blob/aa5c5fe703f92eecc9dc3bc3c1ad9eed3e712f97/manifest.webapp). (Android will just use the Apple icons.)
