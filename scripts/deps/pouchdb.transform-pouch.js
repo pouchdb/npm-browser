@@ -247,7 +247,7 @@ function all(iterable) {
   var resolved = 0;
   var i = -1;
   var promise = new Promise(INTERNAL);
-  
+
   while (++i < len) {
     allResolver(iterable[i], i);
   }
@@ -356,7 +356,7 @@ Promise.prototype.then = function (onFulfilled, onRejected) {
   }
   var promise = new Promise(INTERNAL);
 
-  
+
   if (this.state !== states.PENDING) {
     var resolver = this.state === states.FULFILLED ? onFulfilled: onRejected;
     unwrap(promise, resolver, this.outcome);
@@ -418,7 +418,7 @@ function race(iterable) {
   var resolved = 0;
   var i = -1;
   var promise = new Promise(INTERNAL);
-  
+
   while (++i < len) {
     resolver(iterable[i]);
   }
@@ -510,7 +510,7 @@ function safelyResolveThenable(self, thenable) {
   function tryToUnwrap() {
     thenable(onSuccess, onError);
   }
-  
+
   var result = tryCatch(tryToUnwrap);
   if (result.status === 'error') {
     onError(result.value);
@@ -1043,6 +1043,9 @@ wrapperBuilders.bulkDocs = function (db, bulkDocs, handlers) {
   return function (docs, options, callback) {
     var args = parseBaseArgs(db, this, options, callback);
     //support the deprecated signature.
+    if ('new_edits' in docs) {
+      args.options.new_edits = docs.new_edits;
+    }
     args.docs = docs.docs || docs;
     return callHandlers(handlers, args, function () {
       return bulkDocs.call(this, args.docs, args.options);

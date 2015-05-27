@@ -1,11 +1,9 @@
 'use strict';
 
 var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
-//var COUCHDB_URL = 'http://localhost:5984/skimdb';
-var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser';
-//var INIT_REPL_BASE_URL = '/www';
+var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser-v2';
 
-var NUM_DUMP_FILES = 222;
+var NUM_DUMP_FILES = 327;
 
 function getDumpFilenameForNumber(i) {
   var numStr = i.toString();
@@ -18,20 +16,21 @@ function getDumpFilenameForNumber(i) {
 function PouchService (utils, $rootScope) {
   var self = this;
 
-  // fall back from websql to indexedb for performance
-  self.localPouch = new PouchDB('npm', {adapter: 'websql', size: 2000});
+  // on Safari, we need to make a big ask up-front for 3GB
+  self.localPouch = new PouchDB('npm', {size: 3000});
   if (!self.localPouch.adapter) {
     self.localPouch = new PouchDB('npm');
   }
 
-  self.localPouch.filter({
+  self.localPouch.transform({
     incoming: function (doc) {
-      // filter fields we don't need
-
+      // filter fields we don't need to change
       doc = utils.pick(doc, [
-        '_id', '_rev', 'name', 'description', 'dist-tags', 'versions',
+        '_id', '_rev', '_revisions', 'name', 'description',
+        'dist-tags', 'versions',
         'readme', 'maintainers', 'time'
       ]);
+      // filter fields we don't need for the app
       if (doc['dist-tags'] && doc['dist-tags'].latest) {
         var latest = doc['dist-tags'].latest;
         if (doc.time) {
@@ -70,7 +69,7 @@ function PouchService (utils, $rootScope) {
   // quick replication via the pouchdb-dump plugin
   // downloads a bunch of dump files from Amazon S3
   function doInitialReplication() {
-    var localDocId = '_local/init_repl_done';
+    var localDocId = '_local/initial_repl_done';
     // putIfNotExists provided by the pouchdb-upsert plugin
     return self.localPouch.putIfNotExists(localDocId, {
       filesLoaded: -1
@@ -78,28 +77,27 @@ function PouchService (utils, $rootScope) {
       return self.localPouch.get(localDocId)
     }).then(function (localDoc) {
       var filesLoaded = localDoc.filesLoaded;
-      if (filesLoaded === NUM_DUMP_FILES) {
+      if (filesLoaded === NUM_DUMP_FILES - 1) {
         return; // done
       }
       // do initial replication
-      var dumpFiles = [];
-      for (var i = filesLoaded + 1; i <= NUM_DUMP_FILES; i++) {
-        dumpFiles.push(i);
-      }
       var series = PouchDB.utils.Promise.resolve();
-      dumpFiles.forEach(function (i) {
-        var file = getDumpFilenameForNumber(i);
+      function loadFile(num) {
+        var file = getDumpFilenameForNumber(num);
 
         series = series.then(function () {
           return self.localPouch.load(file, {proxy: COUCHDB_URL}).then(function () {
             handleSuccess();
             // provided by the pouchdb-upsert plugin
             return self.localPouch.upsert(localDocId, function () {
-              return {filesLoaded: i};
+              return {filesLoaded: num};
             });
           });
         });
-      });
+      }
+      for (var i = filesLoaded + 1; i < NUM_DUMP_FILES; i++) {
+        loadFile(i);
+      }
       return series;
     });
   }
