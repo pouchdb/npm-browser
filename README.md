@@ -51,6 +51,10 @@ Once initial replication is complete, the app switches over to regular replicati
 
 Unfortunately, since SkimDB still doesn't support CORS (as of this writing), we have a simple IrisCouch mirror set up at [http://skimdb.iriscouch.com/registry](http://skimdb.iriscouch.com/registry). Using the real Skim DB is a TODO.
 
+### WebSQL
+
+This app prefers WebSQL to IndexedDB because in Chrome it appears to perform better.
+
 AppCache tricks
 ------
 
