@@ -18,7 +18,7 @@ scripts/controllers/main.js
 scripts/deps/markdown.min.js
 scripts/deps/md5.min.js
 scripts/deps/moment.min.js
-scripts/deps/pouchdb.filter-pouch.js
+scripts/deps/pouchdb.transform-pouch.js
 scripts/deps/pouchdb.load.js
 scripts/deps/pouchdb.upsert.js
 scripts/deps/pouchdb.js
