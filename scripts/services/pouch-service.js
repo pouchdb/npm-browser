@@ -1,9 +1,9 @@
 'use strict';
 
 var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
-var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser-v2';
+var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser-v3';
 
-var NUM_DUMP_FILES = 327;
+var NUM_DUMP_FILES = 164;
 
 function getDumpFilenameForNumber(i) {
   var numStr = i.toString();
@@ -69,36 +69,52 @@ function PouchService (utils, $rootScope) {
   // quick replication via the pouchdb-dump plugin
   // downloads a bunch of dump files from Amazon S3
   function doInitialReplication() {
-    var localDocId = '_local/initial_repl_done';
+    var localDocId = '_local/initial_load_done-v3';
     // putIfNotExists provided by the pouchdb-upsert plugin
     return self.localPouch.putIfNotExists(localDocId, {
       filesLoaded: -1
     }).then(function () {
       return self.localPouch.get(localDocId)
     }).then(function (localDoc) {
-      var filesLoaded = localDoc.filesLoaded;
-      if (filesLoaded === NUM_DUMP_FILES - 1) {
-        return; // done
-      }
-      // do initial replication
-      var series = PouchDB.utils.Promise.resolve();
-      function loadFile(num) {
-        var file = getDumpFilenameForNumber(num);
 
-        series = series.then(function () {
+      function loadFile(num) {
+        // load them in reverse order, because the most interesting
+        // modules were updated most recently
+        var file = getDumpFilenameForNumber(NUM_DUMP_FILES - num - 1);
+
+        return function () {
           return self.localPouch.load(file, {proxy: COUCHDB_URL}).then(function () {
             handleSuccess();
-            // provided by the pouchdb-upsert plugin
             return self.localPouch.upsert(localDocId, function () {
               return {filesLoaded: num};
             });
           });
+        };
+      }
+
+      // also load the final file again, just to get the right update_seq
+      function loadFinalFile() {
+        var finalFile = getDumpFilenameForNumber(NUM_DUMP_FILES - 1);
+
+        return self.localPouch.load(finalFile, {proxy: COUCHDB_URL}).then(function () {
+          handleSuccess();
+          return self.localPouch.upsert(localDocId, function (doc) {
+            doc.loadedFinalFile = true;
+            return doc;
+          });
         });
       }
-      for (var i = filesLoaded + 1; i < NUM_DUMP_FILES; i++) {
-        loadFile(i);
+
+      // do initial replication if necessary
+      var promise = PouchDB.utils.Promise.resolve();
+      for (var i = localDoc.filesLoaded + 1; i < NUM_DUMP_FILES; i++) {
+        promise = promise.then(loadFile(i));
       }
-      return series;
+      return promise.then(function () {
+        if (!localDoc.loadedFinalFile) {
+          return loadFinalFile();
+        }
+      });
     });
   }
 
