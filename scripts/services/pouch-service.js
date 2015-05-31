@@ -17,7 +17,9 @@ function PouchService (utils, $rootScope) {
   var self = this;
 
   // on Safari, we need to make a big ask up-front for 3GB
-  self.localPouch = new PouchDB('npm', {adapter: 'websql', size: 2500});
+  // Sadly, iOS is limited to 50
+  var size = /iP(hone|ad|od)/.test(navigator.userAgent) ? 50 : 2500;
+  self.localPouch = new PouchDB('npm', {adapter: 'websql', size: size});
   if (!self.localPouch.adapter) {
     self.localPouch = new PouchDB('npm');
   }
