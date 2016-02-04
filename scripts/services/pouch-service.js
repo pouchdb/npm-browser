@@ -1,6 +1,6 @@
 'use strict';
 
-var COUCHDB_URL = 'http://skimdb.iriscouch.com/registry';
+var COUCHDB_URL = 'https://nolan.cloudant.com/skimdb-mirror';
 var INIT_REPL_BASE_URL = 'https://nolanlawson.s3.amazonaws.com/npm-browser-v2';
 
 var NUM_DUMP_FILES = 327;

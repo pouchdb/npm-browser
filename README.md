@@ -49,7 +49,7 @@ Once initial replication is complete, the app switches over to regular replicati
 
 ### Skim DB mirror
 
-Unfortunately, since SkimDB still doesn't support CORS (as of this writing), we have a simple IrisCouch mirror set up at [http://skimdb.iriscouch.com/registry](http://skimdb.iriscouch.com/registry). Using the real Skim DB is a TODO.
+Unfortunately, since SkimDB still doesn't support CORS (as of this writing), we have a simple IrisCouch mirror set up at [https://nolan.cloudant.com/skimdb-mirror](https://nolan.cloudant.com/skimdb-mirror). Using the real Skim DB is a TODO.
 
 ### WebSQL
 
