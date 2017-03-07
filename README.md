@@ -1,6 +1,8 @@
 NPM Browser
 ========
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/pouchdb/npm-browser.svg)](https://greenkeeper.io/)
+
 NPM Browser is an offline-first HTML5 app that replicates most of NPM into your browser. It's designed as a demo showcase for [PouchDB](http://pouchdb.com).
 
 Is this for real?
